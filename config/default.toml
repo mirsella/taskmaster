@@ -1,5 +1,5 @@
 [global]
-userid = 1000
+user = 1000
 
 [[program]]
 command = "ls"

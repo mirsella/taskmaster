@@ -6,19 +6,41 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 15:59:57 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 16:11:15 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 mod config;
-use std::env;
-use std::path::Path;
 
-use config::get_config;
 use config::data_type::Config;
+use log::{debug, error, warn};
+use std::{env::{self, args}, error::Error, os::unix::process::CommandExt, path::Path, process::Command};
+use users::get_current_uid;
 
-fn main() {
-	let location: Vec<String> = env::args().collect();
+use crate::config::get_config;
+
+fn privilege_descalation(user: &str) -> Result<(), String> {
+    if get_current_uid() != 0 {
+        debug!(
+            "running as non-privilaged user {}",
+            users::get_current_username()
+                .unwrap_or("deleted".into())
+                .to_string_lossy()
+        );
+        return Ok(());
+    }
+    warn!("This program should not be run as root. relaunching as {user}");
+    let user = users::get_user_by_name(user).ok_or(format!("User {} not found", user))?;
+    Err(Command::new(args().next().unwrap())
+        .uid(user.uid())
+        .gid(user.primary_group_id())
+        .exec()
+        .to_string())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // TODO: start syslog and simple_logger
+    let location: Vec<String> = env::args().collect();
 
 	let conf_file: &Path = match location.len() {
 		1 => Path::new("taskmaster.toml"),
@@ -28,11 +50,13 @@ fn main() {
 	let conf: Config = match get_config(conf_file) {
 		Ok(v) => v,
 		Err(e) => {
-			eprintln!("Error while parsing the configuration file {:?}: {:#?}",
-						conf_file, e);
-			return ;
+			eprintln!("Error while parsing the configuration file {:?}:", conf_file);
+			return Err(e.into());
 		}
 	};
-
-	dbg!(conf);
+    if let Err(e) = privilege_descalation(&conf.user) {
+        error!("descalating privileges: {:#?}", e);
+        return Err(e.into());
+    }
+    Ok(())
 }
