@@ -4,14 +4,14 @@ userid = 1000
 [[program]]
 command = "ls"
 processes = 1
-# start = "at_launch"
+start = "at_launch"
 exit_codes = [ 0 ]
-# min_runtime = 0
-# restart = "never"
-# max_restarts = 3
-# exit_signal = [ "SIGSTOP" ]
-# stdin = "default"
-# stdout = "default"
-# env = [ 'LS_COLORS=rs=01;31:*',  'LS_OPTIONS=-lt' ]
-# cwd = "/tmp"
-# umask = "0002"
+min_runtime = 0
+restart_policy = "Never"
+max_restarts = 3
+exit_signal = [ "SIGSTOP" ]
+stdin = "/dev/null"
+stdout = "/dev/null"
+env = [ 'LS_COLORS=rs=01;31:*',  'LS_OPTIONS=-lt' ]
+cwd = "/tmp"
+umask = "0002"

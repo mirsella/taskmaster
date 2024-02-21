@@ -1,45 +1,38 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   parsing_conf.rs                                    :+:      :+:    :+:   */
+/*   mod.rs                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 13:13:12 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 14:55:39 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
+pub mod data_type;
+pub mod signal;
+
 use std::fs;
+use data_type::Config;
 
-#[derive(serde::Deserialize, Debug)]
-struct Global {
-	userid: u32,
-}
+/// Returns the configuration found in the TOML configuration file
+///
+/// `Ok()` -> `parsing_conf::Config` with the configuration parsed
+///
+/// `Err()` -> `String` that describes the problem
+pub fn get_config() -> Result<Config, String> {	
+	let raw_file = match fs::read_to_string("config/default.toml") {
+		Ok(v) => v,
+		Err(e) => return Err(e.to_string()),
+	};
 
-#[derive(serde::Deserialize, Debug)]
-struct Program {
-	command: String,
-	processes: u8,
-	exit_codes: Vec<u8>,
-}
+	let conf = match toml::from_str(&raw_file) {
+		Ok(v) => v,
+		Err(e) => return Err(e.to_string())
+	};
 
-#[derive(serde::Deserialize, Debug)]
-pub struct Config {
-	global: Global,
-	program: Vec<Program>,
-}
-
-pub fn get_config() -> Result<Config, String> {
-	let conf: Config;
-
-	let raw_file = fs::read_to_string("config/default.toml").unwrap();
-
-	conf = toml::from_str(&raw_file).unwrap();
-
-	println!("{:#?}", conf);
-
-	return Ok(conf);
+	Ok(conf)
 }
 
 #[cfg(test)]
