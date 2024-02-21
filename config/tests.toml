@@ -1,15 +1,14 @@
-user = "mirsella"
-logfile = "taskmaster.log"
+user = "nonrootuser"
 
 [[program]]
 command = "ls"
 processes = 1
-start = "auto"
+start = "manual"
 exit_codes = [0]
 min_runtime = 1
 restart_policy = "never"
 max_restarts = 3
-exit_signal = "SIGSTOP"
+exit_signal = "SIGKILL"
 stdin = "/dev/null"
 stdout = "/dev/null"
 env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']

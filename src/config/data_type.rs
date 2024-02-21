@@ -15,17 +15,28 @@ use std::time::Duration;
 use crate::config::signal::Signal;
 use serde::{Deserialize, Deserializer};
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum RestartPolicy {
     #[default]
     Never,
     Always,
     UnexpectedExit,
 }
+#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Start {
+    #[default]
+    Auto,
+    Manual,
+}
 
 #[derive(Deserialize, Debug)]
 pub struct Program {
     pub command: String,
+
+    #[serde(default)]
+    pub start: Start,
 
     #[serde(default = "default_processes")]
     pub processes: u8,
@@ -36,13 +47,13 @@ pub struct Program {
     #[serde(default)]
     pub exit_codes: Vec<u8>,
 
-    #[serde(default, rename = "PascalCase")]
+    #[serde(default)]
     pub restart_policy: RestartPolicy,
 
     pub max_restarts: u32,
 
-    #[serde(default = "default_exit_signals")]
-    pub exit_signals: Vec<Signal>,
+    #[serde(default)]
+    pub exit_signal: Signal,
 
     pub stdin: Option<String>,
 
@@ -57,9 +68,6 @@ pub struct Program {
 
 fn default_processes() -> u8 {
     1
-}
-fn default_exit_signals() -> Vec<Signal> {
-    vec![Signal::SIGKILL]
 }
 
 fn deserialize_duration<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {

@@ -29,9 +29,12 @@ pub fn get_config(file_path: &Path) -> Result<Config, String> {
 #[cfg(test)]
 mod parsing_tests {
     use super::get_config;
-    use crate::config::signal::Signal;
+    use crate::config::{
+        data_type::{RestartPolicy, Start},
+        signal::Signal,
+    };
     use std::path::Path;
-    const CONFIG: &str = "config/default.toml";
+    const CONFIG: &str = "config/tests.toml";
 
     #[test]
     fn basic_config() {
@@ -53,9 +56,19 @@ mod parsing_tests {
         assert_eq!(c.program[0].command, "ls".to_string());
     }
     #[test]
+    fn test_start() {
+        let c = get_config(Path::new(CONFIG)).unwrap();
+        assert_eq!(c.program[0].start, Start::Manual);
+    }
+    #[test]
     fn test_exit_signals() {
         let c = get_config(Path::new(CONFIG)).unwrap();
-        assert_eq!(c.program[0].exit_signals, vec![Signal::SIGKILL]);
+        assert_eq!(c.program[0].exit_signal, Signal::SIGKILL);
+    }
+    #[test]
+    fn test_restart_policy() {
+        let c = get_config(Path::new(CONFIG)).unwrap();
+        assert_eq!(c.program[0].restart_policy, RestartPolicy::Never);
     }
 
     #[test]

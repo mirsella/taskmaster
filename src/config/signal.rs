@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
+#[derive(Deserialize, Debug, PartialEq, Copy, Clone, Default)]
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Deserialize, Debug, PartialEq, Copy, Clone)]
 pub enum Signal {
     SIGHUP = 1,
     SIGINT = 2,
@@ -17,6 +17,7 @@ pub enum Signal {
     SIGUSR2 = 12,
     SIGPIPE = 13,
     SIGALRM = 14,
+    #[default]
     SIGTERM = 15,
     SIGSTKFLT = 16,
     SIGCHLD = 17,
