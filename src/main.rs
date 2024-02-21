@@ -43,7 +43,6 @@ fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
 
 fn main() {
     // TODO: start syslog and simple_logger
-    simple_logger::init().unwrap();
     let conf_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let conf: Config = match get_config(Path::new(&conf_path)) {
         Ok(v) => v,
