@@ -22,26 +22,28 @@ use std::{fs, path::PathBuf};
 ///
 /// `Err()` -> `String` that describes the problem
 pub fn get_config(file_path: PathBuf) -> Result<Config, String> {
-    let raw_file = match fs::read_to_string(file_path) {
-        Ok(v) => v,
-        Err(e) => return Err(e.to_string()),
-    };
-
-    let conf = match toml::from_str(&raw_file) {
-        Ok(v) => v,
-        Err(e) => return Err(e.to_string()),
-    };
-
-    Ok(conf)
+    let raw_file = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+    toml::from_str(&raw_file).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
 mod parsing_tests {
+    use crate::config::signal::Signal;
+
     use super::get_config;
 
     #[test]
     fn basic_config() {
-        get_config("taskmaster.toml".into()).unwrap();
+        let c = get_config("taskmaster.toml".into()).unwrap();
+        assert_eq!(c.user, Some("nonrootuser".to_string()));
+        assert_eq!(c.program.len(), 1);
+        assert_eq!(c.program[0].command, "ls".to_string());
+        assert_eq!(c.program[0].exit_signals, vec![Signal::SIGKILL]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_config() {
+        get_config("invalid.toml".into()).unwrap();
     }
 }
-

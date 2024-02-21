@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub enum Signal {
     SIGHUP,
     SIGINT,
