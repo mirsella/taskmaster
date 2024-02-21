@@ -1,4 +1,4 @@
-user = "user"
+user = "nonrootuser"
 logfile = "taskmaster.log"
 
 [[program]]
@@ -15,4 +15,3 @@ stdout = "/dev/null"
 env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
 cwd = "/tmp"
 umask = "0002"
-

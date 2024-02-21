@@ -12,13 +12,13 @@
 
 mod config;
 
-use config::data_type::Config;
 use crate::config::get_config;
+use config::data_type::Config;
 use log::{debug, error, warn};
-use std::{env::{self, args}, error::Error, os::unix::process::CommandExt, path::Path, process::Command};
+use std::{env::args, os::unix::process::CommandExt, process::Command};
 use users::get_current_uid;
 
-fn privilege_descalation(user: &str) -> Result<(), String> {
+fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
     if get_current_uid() != 0 {
         debug!(
             "running as non-privilaged user {}",
@@ -28,8 +28,12 @@ fn privilege_descalation(user: &str) -> Result<(), String> {
         );
         return Ok(());
     }
-    warn!("This program should not be run as root. relaunching as {user}");
-    let user = users::get_user_by_name(user).ok_or(format!("User {} not found", user))?;
+    warn!("This program should not be run as root");
+    let Some(name) = name else {
+        return Err("Please specify a user to relaunch into".into());
+    };
+    let user =
+        users::get_user_by_name(name).ok_or(format!("User {} not found on the system", name))?;
     Err(Command::new(args().next().unwrap())
         .uid(user.uid())
         .gid(user.primary_group_id())
@@ -39,23 +43,17 @@ fn privilege_descalation(user: &str) -> Result<(), String> {
 
 fn main() {
     // TODO: start syslog and simple_logger
-    let location: Vec<String> = env::args().collect();
 
-	let conf_file: &Path = match location.len() {
-		1 => Path::new("taskmaster.toml"),
-		_ => Path::new(&location[1])
-	};
-
-	let conf: Config = match get_config(conf_file) {
-		Ok(v) => v,
-		Err(e) => {
-			eprintln!("Error while parsing the configuration file {:?}: {:#?}",
-						conf_file, e);
-			return ;
-		}
-	};
-    if let Err(e) = privilege_descalation(&conf.user) {
-        error!("descalating privileges: {:#?}", e);
+    let conf_path = args().nth(1).unwrap_or("taskmaster.toml".to_string());
+    let conf: Config = match get_config(conf_path.clone().into()) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
+            return;
+        }
+    };
+    if let Err(e) = privilege_descalation(conf.user.as_deref()) {
+        error!("de-escalating privileges: {:#?}", e);
         return;
     }
 }

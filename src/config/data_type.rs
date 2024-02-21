@@ -59,7 +59,6 @@ fn default_exit_signals() -> Vec<Signal> {
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub user: String,
-	pub logfile: String,
+    pub user: Option<String>,
     pub program: Vec<Program>,
 }

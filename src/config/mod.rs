@@ -13,39 +13,35 @@
 pub mod data_type;
 pub mod signal;
 
-use std::{fs, path::Path};
 use data_type::Config;
+use std::{fs, path::PathBuf};
 
 /// Returns the configuration found in the TOML configuration file
 ///
 /// `Ok()` -> `parsing_conf::Config` with the configuration parsed
 ///
 /// `Err()` -> `String` that describes the problem
-pub fn get_config(file_path: &Path) -> Result<Config, String> {	
-	let raw_file = match fs::read_to_string(file_path) {
-		Ok(v) => v,
-		Err(e) => return Err(e.to_string()),
-	};
+pub fn get_config(file_path: PathBuf) -> Result<Config, String> {
+    let raw_file = match fs::read_to_string(file_path) {
+        Ok(v) => v,
+        Err(e) => return Err(e.to_string()),
+    };
 
-	let conf = match toml::from_str(&raw_file) {
-		Ok(v) => v,
-		Err(e) => return Err(e.to_string())
-	};
+    let conf = match toml::from_str(&raw_file) {
+        Ok(v) => v,
+        Err(e) => return Err(e.to_string()),
+    };
 
-	Ok(conf)
+    Ok(conf)
 }
 
 #[cfg(test)]
 mod parsing_tests {
-    use std::path::Path;
-
     use super::get_config;
 
-	#[test]
-	fn basic_config() {
-		match get_config(Path::new("taskmaster.toml")) {
-			Ok(var) => println!("No problem"),
-			Err(e) => panic!()
-		}
-	}
+    #[test]
+    fn basic_config() {
+        get_config("taskmaster.toml".into()).unwrap();
+    }
 }
+
