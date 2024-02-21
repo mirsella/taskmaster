@@ -56,4 +56,5 @@ fn main() {
         error!("de-escalating privileges: {:#?}", e);
         return;
     }
+    dbg!(conf);
 }
