@@ -12,11 +12,10 @@
 
 mod config;
 
+use crate::config::get_config;
 use log::{debug, error, warn};
 use std::{env::args, error::Error, os::unix::process::CommandExt, process::Command};
 use users::get_current_uid;
-
-use crate::config::get_config;
 
 fn privilege_descalation(user: &str) -> Result<(), String> {
     if get_current_uid() != 0 {
@@ -37,18 +36,17 @@ fn privilege_descalation(user: &str) -> Result<(), String> {
         .to_string())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     // TODO: start syslog and simple_logger
     let conf = match get_config() {
         Ok(v) => v,
         Err(e) => {
             error!("parsing the configuration file: {:#?}", e);
-            return Err(e.into());
+            return;
         }
     };
     if let Err(e) = privilege_descalation(&conf.user) {
         error!("descalating privileges: {:#?}", e);
-        return Err(e.into());
+        return;
     }
-    Ok(())
 }

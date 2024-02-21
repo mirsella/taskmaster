@@ -1,17 +1,17 @@
-[global]
-userid = 1000
+user = "user"
 
 [[program]]
 command = "ls"
 processes = 1
 start = "at_launch"
-exit_codes = [ 0 ]
+exit_codes = [0]
 min_runtime = 0
 restart_policy = "Never"
 max_restarts = 3
-exit_signal = [ "SIGSTOP" ]
+exit_signal = ["SIGSTOP"]
 stdin = "/dev/null"
 stdout = "/dev/null"
-env = [ 'LS_COLORS=rs=01;31:*',  'LS_OPTIONS=-lt' ]
+env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
 cwd = "/tmp"
 umask = "0002"
+
