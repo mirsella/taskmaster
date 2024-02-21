@@ -12,8 +12,7 @@
 
 mod config;
 
-use crate::config::get_config;
-use config::data_type::Config;
+use config::{get_config, types::Config};
 use log::{debug, error, info, warn};
 use std::{env::args, os::unix::process::CommandExt, path::Path, process::Command};
 use users::get_current_uid;

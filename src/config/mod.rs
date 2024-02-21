@@ -10,11 +10,11 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-pub mod data_type;
 pub mod signal;
+pub mod types;
 
-use data_type::Config;
 use std::{fs, path::Path};
+use types::Config;
 
 /// Returns the configuration found in the TOML configuration file
 ///
@@ -30,14 +30,18 @@ pub fn get_config(file_path: &Path) -> Result<Config, String> {
 mod parsing_tests {
     use super::get_config;
     use crate::config::{
-        data_type::{RestartPolicy, Start},
         signal::Signal,
+        types::{RestartPolicy, StartPolicy},
     };
     use std::path::Path;
     const CONFIG: &str = "config/tests.toml";
 
     #[test]
-    fn basic_config() {
+    fn default() {
+        get_config(Path::new("config/default.toml")).unwrap();
+    }
+    #[test]
+    fn tests() {
         get_config(Path::new(CONFIG)).unwrap();
     }
     #[test]
@@ -58,12 +62,12 @@ mod parsing_tests {
     #[test]
     fn test_start() {
         let c = get_config(Path::new(CONFIG)).unwrap();
-        assert_eq!(c.program[0].start, Start::Manual);
+        assert_eq!(c.program[0].start_policy, StartPolicy::Manual);
     }
     #[test]
     fn test_exit_signals() {
         let c = get_config(Path::new(CONFIG)).unwrap();
-        assert_eq!(c.program[0].exit_signal, Signal::SIGKILL);
+        assert_eq!(c.program[0].valid_signal, Signal::SIGKILL);
     }
     #[test]
     fn test_restart_policy() {

@@ -13,9 +13,10 @@
 use std::time::Duration;
 
 use crate::config::signal::Signal;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
+use serde_with::{serde_as, DurationSeconds};
 
-#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum RestartPolicy {
     #[default]
@@ -23,29 +24,32 @@ pub enum RestartPolicy {
     Always,
     UnexpectedExit,
 }
-#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
+
+#[derive(Deserialize, Debug, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum Start {
+pub enum StartPolicy {
     #[default]
     Auto,
     Manual,
 }
 
+#[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct Program {
     pub command: String,
 
     #[serde(default)]
-    pub start: Start,
+    pub start_policy: StartPolicy,
 
     #[serde(default = "default_processes")]
     pub processes: u8,
 
-    #[serde(default, deserialize_with = "deserialize_duration")]
+    #[serde(default)]
+    #[serde_as(as = "DurationSeconds<u64>")]
     pub min_runtime: Duration,
 
     #[serde(default)]
-    pub exit_codes: Vec<u8>,
+    pub valid_exit_codes: Vec<u8>,
 
     #[serde(default)]
     pub restart_policy: RestartPolicy,
@@ -53,7 +57,11 @@ pub struct Program {
     pub max_restarts: u32,
 
     #[serde(default)]
-    pub exit_signal: Signal,
+    pub valid_signal: Signal,
+
+    #[serde(default)]
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub graceful_timeout: Duration,
 
     pub stdin: Option<String>,
 
@@ -68,11 +76,6 @@ pub struct Program {
 
 fn default_processes() -> u8 {
     1
-}
-
-fn deserialize_duration<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
-    let secs = u64::deserialize(deserializer)?;
-    Ok(Duration::from_secs(secs))
 }
 
 #[derive(Deserialize, Debug)]
