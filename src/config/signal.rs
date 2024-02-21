@@ -37,6 +37,12 @@ pub enum Signal {
     SIGSYS = 31,
 }
 
+impl Signal {
+    pub fn as_code(&self) -> u8 {
+        *self as u8
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Signal;
