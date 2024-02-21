@@ -5,11 +5,11 @@ logfile = "taskmaster.log"
 command = "ls"
 processes = 1
 start = "at_launch"
-exit_codes = [0]
-min_runtime = 1
-restart_policy = "never"
+# exit_codes = [0]
+# min_runtime = 1
+# restart_policy = "never"
 max_restarts = 3
-exit_signal = ["SIGSTOP"]
+# exit_signal = ["SIGSTOP"]
 stdin = "/dev/null"
 stdout = "/dev/null"
 env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']

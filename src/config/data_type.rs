@@ -30,9 +30,10 @@ pub struct Program {
     #[serde(default = "default_processes")]
     pub processes: u8,
 
-    #[serde(deserialize_with = "deserialize_duration")]
+    #[serde(default, deserialize_with = "deserialize_duration")]
     pub min_runtime: Duration,
 
+    #[serde(default)]
     pub exit_codes: Vec<u8>,
 
     #[serde(default, rename = "PascalCase")]
