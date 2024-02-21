@@ -6,11 +6,12 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:14:57 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 17:24:17 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 mod config;
+mod logger;
 
 use crate::config::get_config;
 use config::data_type::Config;
@@ -56,4 +57,6 @@ fn main() {
         error!("de-escalating privileges: {:#?}", e);
         return;
     }
+
+	logger::init_logger(conf);
 }

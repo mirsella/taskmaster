@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:03:34 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 16:52:40 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -44,4 +44,3 @@ mod parsing_tests {
         get_config("taskmaster.toml".into()).unwrap();
     }
 }
-

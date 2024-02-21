@@ -1,5 +1,6 @@
 user = "nonrootuser"
 logfile = "taskmaster.log"
+loglevel = "Warn"
 
 [[program]]
 command = "ls"
