@@ -6,18 +6,17 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:11:15 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 16:14:57 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 mod config;
 
 use config::data_type::Config;
+use crate::config::get_config;
 use log::{debug, error, warn};
 use std::{env::{self, args}, error::Error, os::unix::process::CommandExt, path::Path, process::Command};
 use users::get_current_uid;
-
-use crate::config::get_config;
 
 fn privilege_descalation(user: &str) -> Result<(), String> {
     if get_current_uid() != 0 {
@@ -38,7 +37,7 @@ fn privilege_descalation(user: &str) -> Result<(), String> {
         .to_string())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     // TODO: start syslog and simple_logger
     let location: Vec<String> = env::args().collect();
 
@@ -50,13 +49,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let conf: Config = match get_config(conf_file) {
 		Ok(v) => v,
 		Err(e) => {
-			eprintln!("Error while parsing the configuration file {:?}:", conf_file);
-			return Err(e.into());
+			eprintln!("Error while parsing the configuration file {:?}: {:#?}",
+						conf_file, e);
+			return ;
 		}
 	};
     if let Err(e) = privilege_descalation(&conf.user) {
         error!("descalating privileges: {:#?}", e);
-        return Err(e.into());
+        return;
     }
-    Ok(())
 }
