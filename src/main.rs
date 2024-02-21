@@ -15,7 +15,7 @@ mod config;
 use crate::config::get_config;
 use config::data_type::Config;
 use log::{debug, error, warn};
-use std::{env::args, os::unix::process::CommandExt, process::Command};
+use std::{env::args, os::unix::process::CommandExt, path::Path, process::Command};
 use users::get_current_uid;
 
 fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
@@ -44,8 +44,8 @@ fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
 fn main() {
     // TODO: start syslog and simple_logger
 
-    let conf_path = args().nth(1).unwrap_or("taskmaster.toml".to_string());
-    let conf: Config = match get_config(conf_path.clone().into()) {
+    let conf_path = args().nth(1).unwrap_or("config/default.toml".to_string());
+    let conf: Config = match get_config(Path::new(&conf_path)) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
