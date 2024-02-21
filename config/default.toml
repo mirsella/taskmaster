@@ -1,5 +1,4 @@
-[global]
-user = 1000
+user = "root"
 
 [[program]]
 command = "ls"
