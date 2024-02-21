@@ -1,4 +1,5 @@
 user = "user"
+logfile = "taskmaster.log"
 
 [[program]]
 command = "ls"
