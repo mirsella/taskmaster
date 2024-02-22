@@ -18,3 +18,8 @@ env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
 cwd = "/tmp"
 umask = "0002"
 user = "root"
+
+[[program]]
+name = "ls en plus simple"
+command = "ls"
+processes = 1

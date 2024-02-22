@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 13:39:16 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 10:01:28 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 10:31:12 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -61,7 +61,7 @@ pub struct Program {
     pub valid_exit_codes: Vec<u8>,
     #[serde(default)]
     pub restart_policy: RestartPolicy,
-    pub max_restarts: u32,
+    pub max_restarts: Option<u32>,
     #[serde(default)]
     pub valid_signal: Signal,
     #[serde(default)]

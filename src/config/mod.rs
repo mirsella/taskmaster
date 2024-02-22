@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:52:40 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 10:30:02 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,7 +23,20 @@ use types::Config;
 /// `Err()` -> `String` that describes the problem
 pub fn get_config(file_path: &Path) -> Result<Config, String> {
     let raw_file = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-    toml::from_str(&raw_file).map_err(|e| e.to_string())
+    let config: Config = match toml::from_str(&raw_file).map_err(|e| e.to_string()) {
+		Err(e) => return Err(e),
+		Ok(config) => config,
+	};
+	let mut used_names: Vec<String> = vec![];
+	for prog in &config.program {
+		for used in &used_names {
+			if prog.name.eq_ignore_ascii_case(&used) {
+				return Err(format!("Error: Program name {} used twice or more", used))
+			}
+		}
+		used_names.push(prog.name.clone())
+	}
+	Ok(config)
 }
 
 #[cfg(test)]
