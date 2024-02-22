@@ -89,7 +89,7 @@ pub struct Config {
     pub program: Vec<Program>,
 }
 fn default_logfile() -> String {
-    "log.txt".to_string()
+    "taskmaster.log".to_string()
 }
 fn default_loglevel() -> LevelFilter {
     LevelFilter::Info
