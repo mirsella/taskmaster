@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:52:40 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 17:30:46 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,16 +23,28 @@ use types::Config;
 /// `Err()` -> `String` that describes the problem
 pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, String> {
     let raw_file = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-    toml::from_str(&raw_file).map_err(|e| e.to_string())
+    let config: Config = match toml::from_str(&raw_file).map_err(|e| e.to_string()) {
+		Err(e) => return Err(e),
+		Ok(config) => config,
+	};
+	let mut used_names: Vec<String> = vec![];
+	for prog in &config.program {
+		for used in &used_names {
+			if prog.name.eq_ignore_ascii_case(&used) {
+				return Err(format!("Error: Program name {} used twice or more", used))
+			}
+		}
+		used_names.push(prog.name.clone())
+	}
+	Ok(config)
 }
 
 #[cfg(test)]
 mod parsing_tests {
     use super::get_config;
-    use crate::config::{
-        signal::Signal,
-        types::{RestartPolicy, StartPolicy},
-    };
+    use crate::config::signal::Signal;
+    use crate::program::{StartPolicy, RestartPolicy};
+    use std::path::Path;
     const CONFIG: &str = "config/tests.toml";
 
     #[test]
@@ -65,8 +77,9 @@ mod parsing_tests {
     }
     #[test]
     fn test_exit_signals() {
-        let c = get_config(CONFIG).unwrap();
-        assert_eq!(c.program[0].valid_signal, Signal::SIGKILL);
+        let c = get_config(Path::new(CONFIG)).unwrap();
+        assert_eq!(c.program[0].stop_signal, Signal::SIGKILL);
+
     }
     #[test]
     fn test_restart_policy() {
