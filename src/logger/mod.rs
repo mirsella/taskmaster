@@ -18,13 +18,13 @@ pub fn init_logger(log_file: &str, log_level: &LevelFilter) {
     CombinedLogger::init(vec![
         TermLogger::new(
             *log_level,
-            simplelog::Config::default(),
-            TerminalMode::Mixed,
-            ColorChoice::Always,
+            Config::default(),
+            TerminalMode::default(),
+            ColorChoice::Auto,
         ),
         WriteLogger::new(
             *log_level,
-            simplelog::Config::default(),
+            Config::default(),
             File::create(log_file).unwrap(),
         ),
     ])
@@ -33,4 +33,5 @@ pub fn init_logger(log_file: &str, log_level: &LevelFilter) {
     error!("Bright red error");
     info!("This only appears in the log file");
     debug!("This is debugggggggggg ohhhh a buggggggggg");
+    // TODO: add syslog
 }
