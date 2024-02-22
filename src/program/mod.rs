@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 16:42:52 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 16:48:55 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -81,8 +81,8 @@ pub struct Program {
     pub restart_policy: RestartPolicy,
     pub max_restarts: Option<u32>,
     #[serde(default)]
-    pub valid_signal: Signal,
-    #[serde(default)]
+    pub stop_signal: Signal,
+    #[serde(default = "default_timeout")]
     #[serde_as(as = "DurationSeconds<u64>")]
     pub graceful_timeout: Duration,
     pub stdin: Option<String>,
@@ -111,6 +111,10 @@ fn default_processes() -> u8 {
 
 fn default_false() -> bool {
     false
+}
+
+fn default_timeout() -> Duration {
+    Duration::from_secs(10)
 }
 
 impl Program {
@@ -191,8 +195,8 @@ impl Program {
 						Ok(res) => match res {
 							Some(status) => info!("The process has already exited [{status}]"),
 							None => {
-								info!("Sinding {} to the process", self.valid_signal);
-								unsafe {kill(c.id() as i32, self.valid_signal as i32)};
+								info!("Sinding {} to the process", self.stop_signal);
+								unsafe {kill(c.id() as i32, self.stop_signal as i32)};
 								// I'll look into the timeout later
 							}
 						},
