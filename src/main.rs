@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 17:23:48 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 17:28:43 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -45,7 +45,7 @@ fn _privilege_descalation(name: Option<&str>) -> Result<(), String> {
 
 fn main() {
     let conf_path = args().nth(1).unwrap_or("config/default.toml".to_string());
-    let conf: Config = match get_config(Path::new(&conf_path)) {
+    let mut conf: Config = match get_config(Path::new(&conf_path)) {
         Ok(v) => v,
         Err(e) => {
             logger::init_logger("log.txt", &log::LevelFilter::Info);
@@ -53,8 +53,8 @@ fn main() {
             return;
         }
     };
-	logger::init_logger(&conf);
-    if let Err(e) = privilege_descalation(conf.user.as_deref()) {
+	logger::init_logger(&conf.logfile, &conf.loglevel);
+    if let Err(e) = _privilege_descalation(conf.user.as_deref()) {
         error!("de-escalating privileges: {:#?}", e);
         return;
     };
