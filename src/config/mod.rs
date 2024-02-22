@@ -13,10 +13,15 @@
 pub mod signal;
 
 use crate::program::{generate_name, Program};
-use serde::Deserialize;
+use serde::{de::IntoDeserializer, Deserialize};
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
-use std::{collections::HashSet, error::Error, fs, mem, path::Path};
+use std::{
+    collections::HashSet,
+    error::Error,
+    fs,
+    path::{Path, PathBuf},
+};
 use tracing::{warn, Level};
 
 #[serde_as]
@@ -24,14 +29,14 @@ use tracing::{warn, Level};
 pub struct Config {
     pub user: Option<String>,
     #[serde(default = "default_logfile")]
-    pub logfile: String,
+    pub logfile: PathBuf,
     #[serde(default = "default_loglevel")]
     #[serde_as(as = "DisplayFromStr")]
     pub loglevel: Level,
     pub program: Vec<Program>,
 }
-fn default_logfile() -> String {
-    "taskmaster.log".to_string()
+fn default_logfile() -> PathBuf {
+    "taskmaster.log".into()
 }
 fn default_loglevel() -> Level {
     Level::INFO
@@ -48,7 +53,9 @@ pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>>
         let new = generate_name();
         warn!(
             "Renaming Program with command `{}` as `{}` because `{}` is already taken",
-            prog.command, new, prog.name
+            prog.command.display(),
+            new,
+            prog.name
         );
         prog.name = new;
     }
@@ -83,7 +90,7 @@ mod parsing_tests {
     #[test]
     fn test_command() {
         let c = get_config(CONFIG).unwrap();
-        assert_eq!(&c.program[0].command, "ls");
+        assert_eq!(c.program[0].command.display().to_string(), "ls");
     }
     #[test]
     fn test_start() {

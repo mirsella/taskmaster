@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-use std::{fs::File, io::Write};
+use std::{fs::File, io::Write, path::Path};
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
@@ -19,7 +19,7 @@ use tracing_subscriber::{
 };
 
 pub fn init_logger(
-    log_file: &str,
+    log_file: &Path,
     log_level: &Level,
 ) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
     let mut file = File::options().append(true).create(true).open(log_file)?;

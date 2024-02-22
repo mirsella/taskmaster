@@ -79,7 +79,7 @@ pub struct Child {
 #[derive(Deserialize, Debug)]
 pub struct Program {
     // Mandatory
-    pub command: String,
+    pub command: PathBuf,
 
     // Optional
     #[serde(default = "generate_name")]
@@ -199,13 +199,15 @@ impl Program {
                 (Process::Running(chd), _) => info!(
                     "{} ({}): Child {} now running. [{}]",
                     self.name,
-                    self.command,
+                    self.command.display(),
                     process_nb,
                     chd.id()
                 ),
                 (Process::NotRunning(_cmd), _) => debug!(
                     "{} ({}): Child {} loaded.",
-                    self.name, self.command, process_nb
+                    self.name,
+                    self.command.display(),
+                    process_nb
                 ),
             }
             self.childs.push(new_child);
@@ -213,7 +215,7 @@ impl Program {
     }
 
     pub fn kill(&mut self) {
-        let pre_string = format!("{} ({}):", self.name, self.command);
+        let pre_string = format!("{} ({}):", self.name, self.command.display());
         for child in &mut self.childs {
             match &mut child.process {
                 Process::Running(ref mut c) => {
@@ -246,7 +248,9 @@ impl Program {
         match all {
             true => println!(
                 "Program: {}\ncmd: {}\nargs: {:?}",
-                self.name, self.command, self.args
+                self.name,
+                self.command.display(),
+                self.args
             ),
             false => println!("Program: {}", self.name),
         }

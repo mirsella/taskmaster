@@ -15,7 +15,7 @@ mod logger;
 mod program;
 
 use config::get_config;
-use std::{env::args, process::exit, time::Duration};
+use std::{env::args, path::Path, process::exit, time::Duration};
 use tracing::{error, info, Level};
 
 fn main() {
@@ -23,7 +23,7 @@ fn main() {
     let mut config = match get_config(&config_path) {
         Ok(v) => v,
         Err(e) => {
-            let _ = logger::init_logger("log.txt", &Level::INFO).unwrap();
+            let _ = logger::init_logger(Path::new("log.txt"), &Level::INFO).unwrap();
             error!("Error while parsing the configuration file {config_path:?}: {e}",);
             exit(1);
         }
