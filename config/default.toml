@@ -1,6 +1,6 @@
 user = "mirsella"
 logfile = "taskmaster.log"
-loglevel = "debug"
+loglevel = "trace"
 
 [[program]]
 name = "ls"

@@ -1,7 +1,7 @@
 # bonus
 
-- Privilege de-escalation on launch (Needs to be started as root)
-- Advanced logging (including syslog)
-- Configurable log level
+- Launch a command as another user
+- Advanced logging (stdout, file, journald)
+- Configurable log level from the config
 - Tests and CI
-- Better shell
+- Terminal interface

@@ -14,18 +14,20 @@ use log::LevelFilter;
 use serde::Deserialize;
 use crate::program::Program;
 
+#[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub user: Option<String>,
     #[serde(default = "default_logfile")]
     pub logfile: String,
     #[serde(default = "default_loglevel")]
-    pub loglevel: LevelFilter,
+    #[serde_as(as = "DisplayFromStr")]
+    pub loglevel: Level,
     pub program: Vec<Program>,
 }
 fn default_logfile() -> String {
     "taskmaster.log".to_string()
 }
-fn default_loglevel() -> LevelFilter {
-    LevelFilter::Info
+fn default_loglevel() -> Level {
+    Level::INFO
 }
