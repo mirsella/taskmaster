@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 16:31:44 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 16:41:30 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -114,46 +114,33 @@ fn default_false() -> bool {
 }
 
 impl Program {
+	fn open_file(path: String, read: bool, write: bool, append: bool, create: bool)
+		-> Stdio {
+		match OpenOptions::new()
+						.read(read)
+						.write(write)
+						.append(append)
+						.create(create)
+						.open(&path) {
+			Ok(file) => Stdio::from(file),
+			Err(e) => {
+				error!("Could not open {}: {e}", path);
+				Stdio::null()
+			}
+		}
+	}
+	
 	fn create_child(&mut self, mut cmd: process::Command) -> process::Child {
 		let stdin_path = self.stdout.clone().unwrap_or("/dev/stdin".into());
-		let stdin: Stdio = match OpenOptions::new()
-									.read(true)
-									.open(&stdin_path) {
-			Ok(file) => Stdio::from(file),
-			Err(e) => {
-				error!("Could not open {}: {e}", stdin_path);
-				Stdio::null()
-			}
-		};
-
 		let stdout_path = self.stdout.clone().unwrap_or("/dev/stdout".into());
-		let stdout: Stdio = match OpenOptions::new()
-									.write(true)
-									.append(self.stdout_append)
-									.create(true)
-									.open(&stdout_path) {
-			Ok(file) => Stdio::from(file),
-			Err(e) => {
-				error!("Could not open {}: {e}", stdout_path);
-				Stdio::null()
-			}
-		};
-
 		let stderr_path = self.stderr.clone().unwrap_or("/dev/stderr".into());
-		let stderr: Stdio = match OpenOptions::new()
-									.write(true)
-									.append(self.stderr_append)
-									.create(true)
-									.open(&stderr_path) {
-			Ok(file) => Stdio::from(file),
-			Err(e) => {
-				error!("Could not open {}: {e}", stderr_path);
-				Stdio::null()
-			}
-		};
-
-		// let stdin = Stdio::inherit();
-		// let stdout = Stdio::inherit();
+		
+		let stdin: Stdio = Program::open_file(stdin_path, true,
+												false, false, false);
+		let stdout: Stdio = Program::open_file(stdout_path, false,
+												true, self.stdout_append, true);
+		let stderr: Stdio = Program::open_file(stderr_path, false,
+												true, self.stderr_append, true);
 
 		let mut env_vars = HashMap::new();
 		for entry in self.env.clone() {
