@@ -13,5 +13,5 @@ stop_signal = "SIGKILL"
 stdin = "/dev/null"
 stdout = "/dev/null"
 env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
+umask = 0o002
 cwd = "/tmp"
-umask = "0002"

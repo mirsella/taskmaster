@@ -11,10 +11,33 @@
 /* ************************************************************************** */
 
 pub mod signal;
-pub mod types;
 
+use crate::program::Program;
+use serde::Deserialize;
+use serde_with::{serde_as, DisplayFromStr};
+pub use signal::Signal;
 use std::{fs, path::Path};
-use types::Config;
+use tracing::Level;
+
+#[serde_as]
+#[derive(Deserialize, Debug)]
+pub struct Config {
+    pub user: Option<String>,
+    #[serde(default = "default_logfile")]
+    pub logfile: String,
+    #[serde(default = "default_loglevel")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub loglevel: Level,
+    pub program: Vec<Program>,
+}
+
+fn default_logfile() -> String {
+    "taskmaster.log".to_string()
+}
+
+fn default_loglevel() -> Level {
+    Level::INFO
+}
 
 /// Returns the configuration found in the TOML configuration file
 ///
@@ -24,26 +47,25 @@ use types::Config;
 pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, String> {
     let raw_file = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let config: Config = match toml::from_str(&raw_file).map_err(|e| e.to_string()) {
-		Err(e) => return Err(e),
-		Ok(config) => config,
-	};
-	let mut used_names: Vec<String> = vec![];
-	for prog in &config.program {
-		for used in &used_names {
-			if prog.name.eq_ignore_ascii_case(used) {
-				return Err(format!("Error: Program name {} used twice or more", used))
-			}
-		}
-		used_names.push(prog.name.clone())
-	}
-	Ok(config)
+        Err(e) => return Err(e),
+        Ok(config) => config,
+    };
+    let mut used_names: Vec<String> = vec![];
+    for prog in &config.program {
+        for used in &used_names {
+            if prog.name.eq_ignore_ascii_case(used) {
+                return Err(format!("Error: Program name {} used twice or more", used));
+            }
+        }
+        used_names.push(prog.name.clone())
+    }
+    Ok(config)
 }
 
 #[cfg(test)]
 mod parsing_tests {
-    use super::get_config;
-    use crate::config::signal::Signal;
-    use crate::program::{StartPolicy, RestartPolicy};
+    use super::{get_config, Signal};
+    use crate::program::{RestartPolicy, StartPolicy};
     use std::path::Path;
     const CONFIG: &str = "config/tests.toml";
 
@@ -79,7 +101,6 @@ mod parsing_tests {
     fn test_exit_signals() {
         let c = get_config(Path::new(CONFIG)).unwrap();
         assert_eq!(c.program[0].stop_signal, Signal::SIGKILL);
-
     }
     #[test]
     fn test_restart_policy() {

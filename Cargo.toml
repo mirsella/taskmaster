@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 libc = "0.2.153"
+names = "0.14.0"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_with = "3.6.1"
 toml = "0.8.10"
