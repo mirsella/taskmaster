@@ -6,19 +6,17 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 11:21:59 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 14:21:13 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 mod config;
 mod logger;
-mod launcher;
+mod program;
 
 use config::{get_config, types::Config};
-use launcher::launch;
-use libc::pid_t;
 use log::{debug, error, info, warn};
-use std::{collections::HashMap, env::args, os::unix::process::CommandExt, path::Path, process::Command};
+use std::{env::args, os::unix::process::CommandExt, path::Path, process::Command, time::Duration};
 use users::get_current_uid;
 
 fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
@@ -48,7 +46,7 @@ fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
 fn main() {
     // TODO: start syslog and simple_logger
     let conf_path = args().nth(1).unwrap_or("config/default.toml".to_string());
-    let conf: Config = match get_config(Path::new(&conf_path)) {
+    let mut conf: Config = match get_config(Path::new(&conf_path)) {
 		Ok(v) => v,
         Err(e) => {
 			eprintln!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
@@ -61,11 +59,13 @@ fn main() {
         return;
     };
 
-	let mut pid_map: HashMap<String, pid_t> = HashMap::new();
-
-	for program in conf.program {
-		pid_map.extend(launch(program));
+	for program in &mut conf.program {
+		program.launch();
 	}
 
-	dbg!(pid_map);
+	std::thread::sleep(Duration::from_secs(5));
+
+	for mut program in conf.program {
+		program.kill();
+	}
 }

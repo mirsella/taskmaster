@@ -4,7 +4,7 @@ loglevel = "debug"
 
 [[program]]
 name = "ls"
-command = "ls"
+command = "yes"
 processes = 1
 start_policy = "auto"
 valid_exit_codes = [0]
@@ -12,14 +12,16 @@ min_runtime = 1
 restart_policy = "never"
 max_restarts = 3
 valid_signal = "SIGSTOP"
-stdin = "/dev/null"
-stdout = "/dev/null"
-env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
+stdin = "/dev/stdin"
+stdout = "test.log"
+args = []
+env = []
 cwd = "/tmp"
 umask = "0002"
 user = "root"
 
 [[program]]
-name = "ls en plus simple"
-command = "ls"
+name = "yes2"
+command = "yes"
 processes = 1
+args = ["Hello les amis"]

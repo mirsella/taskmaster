@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 10:30:02 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 11:35:57 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -42,10 +42,8 @@ pub fn get_config(file_path: &Path) -> Result<Config, String> {
 #[cfg(test)]
 mod parsing_tests {
     use super::get_config;
-    use crate::config::{
-        signal::Signal,
-        types::{RestartPolicy, StartPolicy},
-    };
+    use crate::config::signal::Signal;
+	use crate::program::{StartPolicy, RestartPolicy};
     use std::path::Path;
     const CONFIG: &str = "config/tests.toml";
 
