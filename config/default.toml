@@ -5,7 +5,7 @@ loglevel = "debug"
 [[program]]
 name = "ls"
 command = "bash"
-processes = 1
+processes = 3
 start_policy = "auto"
 valid_exit_codes = [0]
 min_runtime = 1
@@ -21,8 +21,7 @@ cwd = "/tmp"
 umask = "0002"
 user = "root"
 
-# [[program]]
-# name = "yes2"
-# command = "yes"
-# processes = 1
-# args = ["Hello les amis"]
+[[program]]
+name = "ShouldFail"
+command = "does not exist"
+processes = 3

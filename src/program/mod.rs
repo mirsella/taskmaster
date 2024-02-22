@@ -6,13 +6,13 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 16:48:55 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 18:59:31 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-use std::{collections::HashMap, env::current_dir, fs::{File, OpenOptions}, path::Path, process::{self, exit, Command, Stdio}};
+use std::{collections::HashMap, env::current_dir, fmt, fs::{File, OpenOptions}, io, path::Path, process::{self, exit, Command, Stdio}};
 use libc::kill;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use crate::config::signal::Signal;
 use serde::Deserialize;
@@ -45,6 +45,17 @@ pub enum ChildStatus {
 	Running,
 	Waiting,
 	Crashed,
+}
+
+impl fmt::Display for ChildStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChildStatus::Stopped => write!(f, "\x1b[33mStopped\x1b[0m"),
+            ChildStatus::Running => write!(f, "\x1b[32mRunning\x1b[0m"),
+            ChildStatus::Waiting => write!(f, "Waiting"),
+            ChildStatus::Crashed => write!(f, "\x1b[31mCrashed\x1b[0m"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -134,7 +145,7 @@ impl Program {
 		}
 	}
 	
-	fn create_child(&mut self, mut cmd: process::Command) -> process::Child {
+	fn create_child(&mut self, cmd: &mut process::Command) -> io::Result<process::Child> {
 		let stdin_path = self.stdin.clone().unwrap_or("/dev/stdin".into());
 		let stdout_path = self.stdout.clone().unwrap_or("/dev/stdout".into());
 		let stderr_path = self.stderr.clone().unwrap_or("/dev/stderr".into());
@@ -152,7 +163,7 @@ impl Program {
 			if parts.len() == 2 {
 				env_vars.insert(parts[0].to_string(), parts[1].to_string());
 			} else {
-				error!("Invalid environment variable entry: {}", entry);
+				warn!("Invalid environment variable entry: {}", entry);
 			}
 		}
 
@@ -165,45 +176,82 @@ impl Program {
 			.args(self.args.clone()).envs(env_vars)
 			.current_dir(cwd)
 			.spawn()
-			.expect("Problem in command execution")
 	}
 	
 	pub fn launch(&mut self) {
-		for _process_nb in 1..self.processes + 1 {
-			let new_process = Command::new(self.command.clone());
+		for process_nb in 1..self.processes + 1 {
+			let mut new_process = Command::new(self.command.clone());
 			let new_child = match self.start_policy {
-				StartPolicy::Auto => Child {
-					process: Process::Running(self.create_child(new_process)),
-					start_time: Some(Instant::now()),
-					status: ChildStatus::Running,
-				},
+				StartPolicy::Auto => match self.create_child(&mut new_process) {
+					Ok(new_child) => Child {
+						process: Process::Running(new_child),
+						start_time: Some(Instant::now()),
+						status: ChildStatus::Running,
+					},
+					Err(e) => {
+						error!("Error while creating child: {e}");
+						Child {
+							process: Process::NotRunning(new_process),
+							start_time: None,
+							status: ChildStatus::Crashed,
+						}
+					}
+				} ,
 				StartPolicy::Manual => Child {
 					process: Process::NotRunning(new_process),
 					start_time: None,
 					status: ChildStatus::Waiting,
 				}	
 			};
+			match (&new_child.process, &new_child.status) {
+				(_, ChildStatus::Crashed) => {},
+				(Process::Running(chd), _) => info!("{} ({}): Child {} now running. [{}]",
+											self.name, self.command, process_nb, chd.id()),
+				(Process::NotRunning(_cmd), _) => debug!("{} ({}): Child {} loaded.",
+											self.name, self.command, process_nb),
+			}
 			self.childs.push(new_child);
 		}
 	}
 
 	pub fn kill(&mut self) {
+		let pre_string = format!("{} ({}):", self.name, self.command);
 		for child in &mut self.childs {
 			match &mut child.process {
 				Process::Running(ref mut c) => {
 					match c.try_wait() {
 						Ok(res) => match res {
-							Some(status) => info!("The process has already exited [{status}]"),
+							Some(status) => info!("{pre_string} The process has already exited [{status}]"),
 							None => {
-								info!("Sinding {} to the process", self.stop_signal);
+								info!("{pre_string} Sinding {} to the process {}", self.stop_signal, c.id());
 								unsafe {kill(c.id() as i32, self.stop_signal as i32)};
 								// I'll look into the timeout later
 							}
 						},
-						Err(e) => error!("Error while trying to get child information: {e}"),
+						Err(e) => error!("{pre_string} Error while trying to get child information: {e}"),
 					}
 				}
-				Process::NotRunning(_c) => info!("The process was not running"),
+				Process::NotRunning(_c) => info!("{pre_string} The process was not running"),
+			}
+		}
+	}
+
+	pub fn status(&self, all: bool) -> () {
+		match all {
+			true => println!("Program: {}\ncmd: {}\nargs: {:?}",
+							self.name, self.command, self.args),
+			false => println!("Program: {}", self.name),
+		}	
+		println!("PID     | Status  | Uptime");
+		for child in &self.childs {
+			match &child.process {
+				Process::Running(p) => print!("{:<width$}|", p.id(), width = 8),
+				Process::NotRunning(_) => print!("None    |"),
+			}
+			print!(" {:<width$} |", child.status, width = 8);
+			match child.start_time {
+				Some(time) => println!(" {:?}", Instant::now() - time),
+				None => println!(" Unknown"),
 			}
 		}
 	}

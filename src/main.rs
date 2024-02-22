@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 17:28:43 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 18:33:44 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -64,6 +64,12 @@ fn main() {
 	}
 
 	std::thread::sleep(Duration::from_secs(1));
+
+	for program in &conf.program {
+		println!("---");
+		program.status(false);
+	}
+	println!("---");
 
 	for mut program in conf.program {
 		program.kill();
