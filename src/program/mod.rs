@@ -6,21 +6,23 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 18:59:31 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 19:26:04 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-use std::{collections::HashMap, env::current_dir, fmt, fs::{File, OpenOptions}, io, path::Path, process::{self, exit, Command, Stdio}};
-use libc::kill;
-use log::{debug, error, info, warn};
-
 use crate::config::signal::Signal;
+use std::{collections::HashMap,
+	env::current_dir, fmt,
+	fs::OpenOptions,
+	io,
+	process::{self, Command, Stdio},
+	path::PathBuf,
+	time::{Duration, Instant},
+};
+use libc::kill;
+use tracing::{debug, error, info, warn};
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
-use std::{
-    path::PathBuf,
-    time::{Duration, Instant},
-};
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -169,7 +171,7 @@ impl Program {
 
 		let cwd = match &self.cwd {
 			Some(path) => PathBuf::from(path),
-			None => current_dir().unwrap_or(PathBuf::new()),
+			None => current_dir().unwrap_or_default(),
 		};
 
 		cmd.stdin(stdin).stdout(stdout).stderr(stderr)
@@ -236,7 +238,7 @@ impl Program {
 		}
 	}
 
-	pub fn status(&self, all: bool) -> () {
+	pub fn status(&self, all: bool) {
 		match all {
 			true => println!("Program: {}\ncmd: {}\nargs: {:?}",
 							self.name, self.command, self.args),

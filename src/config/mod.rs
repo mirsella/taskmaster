@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 17:30:46 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 19:24:19 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,7 +30,7 @@ pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, String> {
 	let mut used_names: Vec<String> = vec![];
 	for prog in &config.program {
 		for used in &used_names {
-			if prog.name.eq_ignore_ascii_case(&used) {
+			if prog.name.eq_ignore_ascii_case(used) {
 				return Err(format!("Error: Program name {} used twice or more", used))
 			}
 		}
