@@ -4,8 +4,8 @@ loglevel = "trace"
 
 [[program]]
 name = "ls"
-command = "bash"
-processes = 3
+command = "/bin/bash"
+# processes = 3
 start_policy = "auto"
 valid_exit_codes = [0]
 min_runtime = 1
@@ -14,14 +14,14 @@ max_restarts = 3
 stop_signal = "SIGUSR1"
 stdin = "in.log"
 stdout = "./test.log"
-stdout_append = false
+stdout_truncate = false
 args = ["-c", "sleep 0.2; date; sleep 0.5; echo z; sleep 0.5"]
 env = []
 cwd = "/tmp"
 umask = 0o777
 user = "root"
 
-[[program]]
-name = "ShouldFail"
-command = "does not exist"
-processes = 3
+# [[program]]
+# name = "ShouldFail"
+# command = "does not exist"
+# processes = 3

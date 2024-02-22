@@ -17,14 +17,15 @@ use serde_with::{serde_as, DurationSeconds};
 use std::{
     collections::HashMap,
     env::current_dir,
+    error::Error,
     fmt,
-    fs::File,
+    fs::{File, OpenOptions},
     io,
     path::{Path, PathBuf},
     process::{self, Command, Stdio},
     time::{Duration, Instant},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, trace, trace_span, warn};
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -105,9 +106,9 @@ pub struct Program {
     pub stderr: Option<PathBuf>,
     pub stdout: Option<PathBuf>,
     #[serde(default)]
-    pub stdout_append: bool,
+    pub stdout_truncate: bool,
     #[serde(default)]
-    pub stderr_append: bool,
+    pub stderr_truncate: bool,
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
@@ -131,46 +132,63 @@ pub fn generate_name() -> String {
 }
 
 impl Program {
-    fn create_child(&mut self, cmd: &mut process::Command) -> io::Result<process::Child> {
-        let setup_io = |path: Option<&Path>, append: bool| {
+    #[instrument(skip_all)]
+    fn create_child(
+        &mut self,
+        cmd: &mut process::Command,
+    ) -> Result<process::Child, Box<dyn Error>> {
+        let setup_io = |path: Option<&Path>, file_options: &mut OpenOptions| {
             path.map_or(Ok(Stdio::null()), |path| {
-                File::options()
-                    .append(append)
-                    .create(true)
+                file_options
                     .open(path)
+                    .map_err(|e| format!("opening file `{path:?}`: {e}"))
                     .map(Stdio::from)
             })
         };
-        let stdin = setup_io(self.stdin.as_deref(), false)?;
-        let stdout = setup_io(self.stdout.as_deref(), self.stdout_append)?;
-        let stderr = setup_io(self.stderr.as_deref(), self.stderr_append)?;
+        trace!(name = self.name, config = ?self.stdin, "Setting up stdin");
+        let stdin = setup_io(self.stdin.as_deref(), File::options().read(true))?;
+        trace!(name = self.name, config = ?self.stdout, "Setting up stdout");
+        let stdout = setup_io(
+            self.stdout.as_deref(),
+            File::options()
+                .write(true)
+                .truncate(self.stdout_truncate)
+                .create(true),
+        )?;
+        trace!(name = self.name, config = ?self.stderr, "Setting up stderr");
+        let stderr = setup_io(
+            self.stderr.as_deref(),
+            File::options()
+                .write(true)
+                .truncate(self.stderr_truncate)
+                .create(true),
+        )?;
+        trace!(name = self.name, "Setting up stdio done");
 
         let mut env_vars = HashMap::new();
         for entry in self.env.clone() {
-            let parts: Vec<&str> = entry.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                env_vars.insert(parts[0].to_string(), parts[1].to_string());
-            } else {
-                warn!("Invalid environment variable entry: {}", entry);
-            }
+            let parts = entry
+                .split_once('=')
+                .ok_or(format!("Invalid env var: {entry}"))?;
+            env_vars.insert(parts.0.to_string(), parts.1.to_string());
         }
 
         let cwd = match &self.cwd {
             Some(path) => PathBuf::from(path),
             None => current_dir().unwrap_or_default(),
         };
-
-        cmd.stdin(stdin)
+        Ok(cmd
+            .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr)
             .args(self.args.clone())
             .envs(env_vars)
             .current_dir(cwd)
-            .spawn()
+            .spawn()?)
     }
 
     pub fn launch(&mut self) {
-        for process_nb in 1..self.processes + 1 {
+        for process_nb in 1..=self.processes {
             let mut new_process = Command::new(self.command.clone());
             let new_child = match self.start_policy {
                 StartPolicy::Auto => match self.create_child(&mut new_process) {
@@ -222,16 +240,18 @@ impl Program {
                     match c.try_wait() {
                         Ok(res) => match res {
                             Some(status) => {
-                                info!("{pre_string} The process has already exited [{status}]")
+                                debug!("{pre_string} The process has already exited [{status}]")
                             }
                             None => {
-                                info!(
-                                    "{pre_string} Sinding {} to the process {}",
+                                debug!(
+                                    "{pre_string} Sending {} to the process {}",
                                     self.stop_signal,
                                     c.id()
                                 );
                                 unsafe { kill(c.id() as i32, self.stop_signal as i32) };
                                 // I'll look into the timeout later
+                                // lucas: faudrait un flag pour chaque Child pour savoir si on a déjà envoyé un signal et a quel Instant
+                                // pour que la prochaine fois on fasse un check si le child est en cours de shutdown, et si il faut le fermer de force car il a timeout
                             }
                         },
                         Err(e) => {
@@ -239,9 +259,10 @@ impl Program {
                         }
                     }
                 }
-                Process::NotRunning(_c) => info!("{pre_string} The process was not running"),
+                Process::NotRunning(_c) => debug!("{pre_string} The process was not running"),
             }
         }
+        info!("{pre_string} All children have been stopped");
     }
 
     pub fn status(&self, all: bool) {
