@@ -10,46 +10,28 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+use log::{debug, error, info, LevelFilter};
+use simplelog::*;
 use std::fs::File;
 
-use crate::config::types::Config;
-use log::{info, error, debug, LevelFilter};
-use simplelog::*;
-
-pub fn init_logger(config: &Config) {
-	let level: LevelFilter = match &config.loglevel {
-		Some(lvl) => match lvl.to_lowercase().as_str() {
-			"off" => LevelFilter::Off,
-			"error" => LevelFilter::Error,
-			"info" => LevelFilter::Info,
-			"debug" => LevelFilter::Debug,
-			"trace" => LevelFilter::Trace,
-			_ => LevelFilter::Warn,
-		}
-		_ => LevelFilter::Warn,
-	};
-	let file_path: String= match &config.logfile {
-		Some(s) => s.into(),
-		None => "/dev/null".into(),
-	};
-	
-	let test = CombinedLogger::init(vec![
+pub fn init_logger(log_file: &str, log_level: &LevelFilter) {
+    CombinedLogger::init(vec![
         TermLogger::new(
-            level,
-            simplelog::Config::default(),
-            TerminalMode::Mixed,
-            ColorChoice::Always,
+            *log_level,
+            Config::default(),
+            TerminalMode::default(),
+            ColorChoice::Auto,
         ),
         WriteLogger::new(
-            level,
-            simplelog::Config::default(),
-            File::create(file_path).unwrap(),
+            *log_level,
+            Config::default(),
+            File::create(log_file).unwrap(),
         ),
-    ]).unwrap();
+    ])
+    .unwrap();
 
-	dbg!(test);
-
-	error!("Bright red error");
+    error!("Bright red error");
     info!("This only appears in the log file");
-    debug!("This level is currently not enabled for any logger");
+    debug!("This is debugggggggggg ohhhh a buggggggggg");
+    // TODO: add syslog
 }

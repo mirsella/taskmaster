@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 15:14:35 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 17:23:48 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,7 +19,7 @@ use log::{debug, error, info, warn};
 use std::{env::args, os::unix::process::CommandExt, path::Path, process::Command, time::Duration};
 use users::get_current_uid;
 
-fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
+fn _privilege_descalation(name: Option<&str>) -> Result<(), String> {
     if get_current_uid() != 0 {
         debug!(
             "running as non-privilaged user {}",
@@ -44,12 +44,12 @@ fn privilege_descalation(name: Option<&str>) -> Result<(), String> {
 }
 
 fn main() {
-    // TODO: start syslog and simple_logger
     let conf_path = args().nth(1).unwrap_or("config/default.toml".to_string());
-    let mut conf: Config = match get_config(Path::new(&conf_path)) {
-		Ok(v) => v,
+    let conf: Config = match get_config(Path::new(&conf_path)) {
+        Ok(v) => v,
         Err(e) => {
-			eprintln!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
+            logger::init_logger("log.txt", &log::LevelFilter::Info);
+            error!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
             return;
         }
     };

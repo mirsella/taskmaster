@@ -40,6 +40,7 @@ pub enum Signal {
 }
 
 impl Signal {
+    #[allow(dead_code)]
     pub fn as_code(&self) -> u8 {
         *self as u8
     }
