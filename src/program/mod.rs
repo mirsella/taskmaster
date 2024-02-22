@@ -6,12 +6,13 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 15:00:23 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 16:31:44 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 use std::{collections::HashMap, env::current_dir, fs::{File, OpenOptions}, path::Path, process::{self, exit, Command, Stdio}};
 use libc::kill;
+use log::{debug, error, info};
 
 use crate::config::signal::Signal;
 use serde::Deserialize;
@@ -84,13 +85,18 @@ pub struct Program {
     #[serde(default)]
     #[serde_as(as = "DurationSeconds<u64>")]
     pub graceful_timeout: Duration,
-    pub stdin: Option<PathBuf>,
-    pub stdout: Option<PathBuf>,
+    pub stdin: Option<String>,
+    pub stderr: Option<String>,
+    pub stdout: Option<String>,
+    #[serde(default = "default_false")]
+    pub stdout_append: bool,
+	#[serde(default = "default_false")]
+    pub stderr_append: bool,
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
     pub env: Vec<String>,
-    pub cwd: Option<PathBuf>,
+    pub cwd: Option<String>,
     pub umask: Option<String>,
 	pub user: Option<String>,
 
@@ -103,30 +109,51 @@ fn default_processes() -> u8 {
     1
 }
 
+fn default_false() -> bool {
+    false
+}
+
 impl Program {
 	fn create_child(&mut self, mut cmd: process::Command) -> process::Child {
-		// let stdin: Stdio = match OpenOptions::new()
-		// 							.write(true)
-		// 							.open(self.stdin.take().unwrap_or(PathBuf::from("/dev/null"))) {
-		// 	Ok(file) => Stdio::from(file),
-		// 	Err(e) => {
-		// 		eprintln!("Could not open stdin: {e}");
-		// 		Stdio::piped()
-		// 	}
-		// };
+		let stdin_path = self.stdout.clone().unwrap_or("/dev/stdin".into());
+		let stdin: Stdio = match OpenOptions::new()
+									.read(true)
+									.open(&stdin_path) {
+			Ok(file) => Stdio::from(file),
+			Err(e) => {
+				error!("Could not open {}: {e}", stdin_path);
+				Stdio::null()
+			}
+		};
 
-		// let stdout: Stdio = match OpenOptions::new()
-		// 							.read(true)
-		// 							.open(self.stdout.take().unwrap_or(PathBuf::from("/dev/null"))) {
-		// 		Ok(file) => Stdio::from(file),
-		// 		Err(e) => {
-		// 		eprintln!("Could not open stdout: {e}");
-		// 		Stdio::piped()
-		// 	}
-		// };
+		let stdout_path = self.stdout.clone().unwrap_or("/dev/stdout".into());
+		let stdout: Stdio = match OpenOptions::new()
+									.write(true)
+									.append(self.stdout_append)
+									.create(true)
+									.open(&stdout_path) {
+			Ok(file) => Stdio::from(file),
+			Err(e) => {
+				error!("Could not open {}: {e}", stdout_path);
+				Stdio::null()
+			}
+		};
 
-		let stdin = Stdio::inherit();
-		let stdout = Stdio::inherit();
+		let stderr_path = self.stderr.clone().unwrap_or("/dev/stderr".into());
+		let stderr: Stdio = match OpenOptions::new()
+									.write(true)
+									.append(self.stderr_append)
+									.create(true)
+									.open(&stderr_path) {
+			Ok(file) => Stdio::from(file),
+			Err(e) => {
+				error!("Could not open {}: {e}", stderr_path);
+				Stdio::null()
+			}
+		};
+
+		// let stdin = Stdio::inherit();
+		// let stdout = Stdio::inherit();
 
 		let mut env_vars = HashMap::new();
 		for entry in self.env.clone() {
@@ -134,18 +161,18 @@ impl Program {
 			if parts.len() == 2 {
 				env_vars.insert(parts[0].to_string(), parts[1].to_string());
 			} else {
-				eprintln!("Invalid environment variable entry: {}", entry);
+				error!("Invalid environment variable entry: {}", entry);
 			}
 		}
 
-		dbg!(&stdin);
-		dbg!(&stdout);
+		let cwd = match &self.cwd {
+			Some(path) => PathBuf::from(path),
+			None => current_dir().unwrap_or(PathBuf::new()),
+		};
 
-		cmd.stdin(stdin).stdout(stdout)
+		cmd.stdin(stdin).stdout(stdout).stderr(stderr)
 			.args(self.args.clone()).envs(env_vars)
-			.current_dir(self.cwd.take()
-							.unwrap_or(current_dir()
-							.unwrap_or(PathBuf::from("/"))))
+			.current_dir(cwd)
 			.spawn()
 			.expect("Problem in command execution")
 	}
@@ -153,19 +180,17 @@ impl Program {
 	pub fn launch(&mut self) {
 		for _process_nb in 1..self.processes + 1 {
 			let new_process = Command::new(self.command.clone());
-			let new_child = Child {
-				process: match self.start_policy {
-					StartPolicy::Auto => Process::Running(self.create_child(new_process)),
-					StartPolicy::Manual => Process::NotRunning(new_process),
+			let new_child = match self.start_policy {
+				StartPolicy::Auto => Child {
+					process: Process::Running(self.create_child(new_process)),
+					start_time: Some(Instant::now()),
+					status: ChildStatus::Running,
 				},
-				start_time: match self.start_policy {
-					StartPolicy::Auto => Some(Instant::now()),
-					StartPolicy::Manual => None,
-				},
-				status: match self.start_policy {
-					StartPolicy::Auto => ChildStatus::Running,
-					StartPolicy::Manual => ChildStatus::Waiting,
-				},
+				StartPolicy::Manual => Child {
+					process: Process::NotRunning(new_process),
+					start_time: None,
+					status: ChildStatus::Waiting,
+				}	
 			};
 			self.childs.push(new_child);
 		}
@@ -177,17 +202,17 @@ impl Program {
 				Process::Running(ref mut c) => {
 					match c.try_wait() {
 						Ok(res) => match res {
-							Some(status) => println!("The process has already exited [{status}]"),
+							Some(status) => info!("The process has already exited [{status}]"),
 							None => {
-								println!("Sinding {} to the process", self.valid_signal);
+								info!("Sinding {} to the process", self.valid_signal);
 								unsafe {kill(c.id() as i32, self.valid_signal as i32)};
 								// I'll look into the timeout later
 							}
 						},
-						Err(e) => eprintln!("Error while trying to get child information: {e}"),
+						Err(e) => error!("Error while trying to get child information: {e}"),
 					}
 				}
-				Process::NotRunning(_c) => println!("The process was not running"),
+				Process::NotRunning(_c) => info!("The process was not running"),
 			}
 		}
 	}

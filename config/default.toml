@@ -4,24 +4,25 @@ loglevel = "debug"
 
 [[program]]
 name = "ls"
-command = "yes"
+command = "bash"
 processes = 1
 start_policy = "auto"
 valid_exit_codes = [0]
 min_runtime = 1
 restart_policy = "never"
 max_restarts = 3
-valid_signal = "SIGSTOP"
-stdin = "/dev/stdin"
-stdout = "test.log"
-args = []
+valid_signal = "SIGUSR1"
+stdin = "in.log"
+stdout = "./test.log"
+stdout_append = true
+args = ["-c", "sleep 0.2; date; sleep 0.5; echo z; sleep 0.5; echo feur"]
 env = []
 cwd = "/tmp"
 umask = "0002"
 user = "root"
 
-[[program]]
-name = "yes2"
-command = "yes"
-processes = 1
-args = ["Hello les amis"]
+# [[program]]
+# name = "yes2"
+# command = "yes"
+# processes = 1
+# args = ["Hello les amis"]
