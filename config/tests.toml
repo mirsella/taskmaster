@@ -1,6 +1,7 @@
 user = "nonrootuser"
 
 [[program]]
+name = "test"
 command = "ls"
 processes = 1
 start_policy = "manual"

@@ -3,6 +3,7 @@ logfile = "taskmaster.log"
 loglevel = "debug"
 
 [[program]]
+name = "ls"
 command = "ls"
 processes = 1
 start_policy = "auto"
@@ -16,3 +17,4 @@ stdout = "/dev/null"
 env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
 cwd = "/tmp"
 umask = "0002"
+user = "root"

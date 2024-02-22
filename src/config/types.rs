@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   data_type.rs                                       :+:      :+:    :+:   */
+/*   types.rs                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 13:39:16 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 17:06:11 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 10:01:28 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -45,7 +45,11 @@ pub struct Child {
 #[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct Program {
+	// Mendatory
     pub command: String,
+	pub name: String,
+
+	// Optional
     #[serde(default)]
     pub start_policy: StartPolicy,
     #[serde(default = "default_processes")]
@@ -68,6 +72,7 @@ pub struct Program {
     pub env: Option<Vec<String>>,
     pub cwd: Option<PathBuf>,
     pub umask: Option<String>,
+	pub user: Option<String>,
 
     // runtime only
     #[serde(skip)]
