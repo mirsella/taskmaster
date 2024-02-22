@@ -12,6 +12,7 @@
 
 use crate::config::signal::Signal;
 use libc::pid_t;
+use log::LevelFilter;
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
 use std::{
@@ -81,7 +82,15 @@ fn default_processes() -> u8 {
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub user: Option<String>,
-	pub logfile: Option<String>,
-	pub loglevel: Option<String>,
+    #[serde(default = "default_logfile")]
+    pub logfile: String,
+    #[serde(default = "default_loglevel")]
+    pub loglevel: LevelFilter,
     pub program: Vec<Program>,
+}
+fn default_logfile() -> String {
+    "log.txt".to_string()
+}
+fn default_loglevel() -> LevelFilter {
+    LevelFilter::Info
 }
