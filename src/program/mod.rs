@@ -78,11 +78,12 @@ pub struct Child {
 #[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct Program {
-    // Mendatory
+    // Mandatory
     pub command: String,
-    pub name: String,
 
     // Optional
+    #[serde(default = "generate_name")]
+    pub name: String,
     #[serde(default)]
     pub start_policy: StartPolicy,
     #[serde(default = "default_processes")]
@@ -119,13 +120,14 @@ pub struct Program {
     #[serde(skip)]
     pub childs: Vec<Child>,
 }
-
 fn default_processes() -> u8 {
     1
 }
-
 fn default_timeout() -> Duration {
     Duration::from_secs(10)
+}
+pub fn generate_name() -> String {
+    names::Generator::default().next().unwrap()
 }
 
 impl Program {
@@ -139,7 +141,6 @@ impl Program {
                     .map(Stdio::from)
             })
         };
-
         let stdin = setup_io(self.stdin.as_deref(), false)?;
         let stdout = setup_io(self.stdout.as_deref(), self.stdout_append)?;
         let stderr = setup_io(self.stderr.as_deref(), self.stderr_append)?;

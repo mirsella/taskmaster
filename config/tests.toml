@@ -1,17 +1,10 @@
 user = "nonrootuser"
 
 [[program]]
-name = "test"
 command = "ls"
 processes = 1
 start_policy = "manual"
 valid_exit_codes = [0]
-min_runtime = 1
-restart_policy = "never"
-max_restarts = 3
 stop_signal = "SIGKILL"
-stdin = "/dev/null"
-stdout = "/dev/null"
-env = ['LS_COLORS=rs=01;31:*', 'LS_OPTIONS=-lt']
+restart_policy = "never"
 umask = 0o002
-cwd = "/tmp"

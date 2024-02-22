@@ -12,12 +12,12 @@
 
 pub mod signal;
 
-use crate::program::Program;
+use crate::program::{generate_name, Program};
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
-use std::{fs, path::Path};
-use tracing::Level;
+use std::{collections::HashSet, error::Error, fs, mem, path::Path};
+use tracing::{warn, Level};
 
 #[serde_as]
 #[derive(Deserialize, Debug)]
@@ -30,34 +30,27 @@ pub struct Config {
     pub loglevel: Level,
     pub program: Vec<Program>,
 }
-
 fn default_logfile() -> String {
     "taskmaster.log".to_string()
 }
-
 fn default_loglevel() -> Level {
     Level::INFO
 }
 
-/// Returns the configuration found in the TOML configuration file
-///
-/// `Ok()` -> `parsing_conf::Config` with the configuration parsed
-///
-/// `Err()` -> `String` that describes the problem
-pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, String> {
-    let raw_file = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-    let config: Config = match toml::from_str(&raw_file).map_err(|e| e.to_string()) {
-        Err(e) => return Err(e),
-        Ok(config) => config,
-    };
-    let mut used_names: Vec<String> = vec![];
-    for prog in &config.program {
-        for used in &used_names {
-            if prog.name.eq_ignore_ascii_case(used) {
-                return Err(format!("Error: Program name {} used twice or more", used));
-            }
+pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>> {
+    let raw_file = fs::read_to_string(file_path)?;
+    let mut config: Config = toml::from_str(&raw_file)?;
+    let mut names = HashSet::new();
+    for prog in &mut config.program {
+        if names.insert(prog.name.clone()) {
+            continue;
         }
-        used_names.push(prog.name.clone())
+        let new = generate_name();
+        warn!(
+            "Renaming Program with command `{}` as `{}` because `{}` is already taken",
+            prog.command, new, prog.name
+        );
+        prog.name = new;
     }
     Ok(config)
 }
@@ -90,12 +83,17 @@ mod parsing_tests {
     #[test]
     fn test_command() {
         let c = get_config(CONFIG).unwrap();
-        assert_eq!(c.program[0].command, "ls".to_string());
+        assert_eq!(&c.program[0].command, "ls");
     }
     #[test]
     fn test_start() {
         let c = get_config(CONFIG).unwrap();
         assert_eq!(c.program[0].start_policy, StartPolicy::Manual);
+    }
+    #[test]
+    fn test_exit_codes() {
+        let c = get_config(Path::new(CONFIG)).unwrap();
+        assert_eq!(c.program[0].valid_exit_codes, vec![0])
     }
     #[test]
     fn test_exit_signals() {
@@ -107,10 +105,29 @@ mod parsing_tests {
         let c = get_config(CONFIG).unwrap();
         assert_eq!(c.program[0].restart_policy, RestartPolicy::Never);
     }
+    #[test]
+    fn test_umask() {
+        let c = get_config(CONFIG).unwrap();
+        assert_eq!(c.program[0].umask.unwrap(), 0o002);
+    }
+    #[test]
+    fn test_random_name() {
+        let c = get_config(CONFIG).unwrap();
+        assert!(!c.program[0].name.is_empty());
+    }
 
     #[test]
     #[should_panic]
     fn invalid_config() {
-        get_config("invalid.toml").unwrap();
+        get_config("config/invalid.toml").unwrap();
+    }
+    #[test]
+    fn invalid_config_no_command() {
+        dbg!(get_config("config/no_command.toml"))
+            .unwrap_err()
+            .to_string()
+            .contains("missing field `command`")
+            .then_some(())
+            .unwrap();
     }
 }
