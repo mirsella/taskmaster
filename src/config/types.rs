@@ -12,13 +12,13 @@
 
 use crate::config::signal::Signal;
 use libc::pid_t;
-use log::LevelFilter;
 use serde::Deserialize;
-use serde_with::{serde_as, DurationSeconds};
+use serde_with::{serde_as, DisplayFromStr, DurationSeconds};
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
+use tracing::Level;
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -79,18 +79,20 @@ fn default_processes() -> u8 {
     1
 }
 
+#[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub user: Option<String>,
     #[serde(default = "default_logfile")]
     pub logfile: String,
     #[serde(default = "default_loglevel")]
-    pub loglevel: LevelFilter,
+    #[serde_as(as = "DisplayFromStr")]
+    pub loglevel: Level,
     pub program: Vec<Program>,
 }
 fn default_logfile() -> String {
     "taskmaster.log".to_string()
 }
-fn default_loglevel() -> LevelFilter {
-    LevelFilter::Info
+fn default_loglevel() -> Level {
+    Level::INFO
 }
