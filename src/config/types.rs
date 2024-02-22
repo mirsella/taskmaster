@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 13:39:16 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:25:11 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 17:06:11 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -81,5 +81,7 @@ fn default_processes() -> u8 {
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub user: Option<String>,
+	pub logfile: Option<String>,
+	pub loglevel: Option<String>,
     pub program: Vec<Program>,
 }

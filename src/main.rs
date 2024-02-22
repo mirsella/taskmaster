@@ -6,11 +6,12 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/21 16:14:57 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/21 22:28:18 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 mod config;
+mod logger;
 
 use config::{get_config, types::Config};
 use log::{debug, error, info, warn};
@@ -45,14 +46,15 @@ fn main() {
     // TODO: start syslog and simple_logger
     let conf_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let conf: Config = match get_config(Path::new(&conf_path)) {
-        Ok(v) => v,
+		Ok(v) => v,
         Err(e) => {
-            eprintln!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
+			eprintln!("Error while parsing the configuration file {conf_path:?}: {e:#?}",);
             return;
         }
     };
+	logger::init_logger(&conf);
     if let Err(e) = privilege_descalation(conf.user.as_deref()) {
         error!("de-escalating privileges: {:#?}", e);
         return;
-    }
+    };
 }
