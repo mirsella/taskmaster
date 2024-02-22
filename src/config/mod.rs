@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 11:35:57 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 17:30:46 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -78,7 +78,7 @@ mod parsing_tests {
     #[test]
     fn test_exit_signals() {
         let c = get_config(Path::new(CONFIG)).unwrap();
-        assert_eq!(c.program[0].valid_signal, Signal::SIGKILL);
+        assert_eq!(c.program[0].stop_signal, Signal::SIGKILL);
     }
     #[test]
     fn test_restart_policy() {
