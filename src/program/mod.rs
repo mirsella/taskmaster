@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 16:41:30 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/22 16:42:52 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -131,7 +131,7 @@ impl Program {
 	}
 	
 	fn create_child(&mut self, mut cmd: process::Command) -> process::Child {
-		let stdin_path = self.stdout.clone().unwrap_or("/dev/stdin".into());
+		let stdin_path = self.stdin.clone().unwrap_or("/dev/stdin".into());
 		let stdout_path = self.stdout.clone().unwrap_or("/dev/stdout".into());
 		let stderr_path = self.stderr.clone().unwrap_or("/dev/stderr".into());
 		
