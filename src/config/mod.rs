@@ -13,7 +13,7 @@
 pub mod signal;
 
 use crate::program::{generate_name, Program};
-use serde::{de::IntoDeserializer, Deserialize};
+use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
 use std::{

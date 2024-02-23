@@ -20,12 +20,11 @@ use std::{
     error::Error,
     fmt,
     fs::{File, OpenOptions},
-    io,
     path::{Path, PathBuf},
     process::{self, Command, Stdio},
     time::{Duration, Instant},
 };
-use tracing::{debug, error, info, instrument, trace, trace_span, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
