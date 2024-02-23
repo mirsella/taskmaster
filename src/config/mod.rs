@@ -22,7 +22,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{warn, Level};
+use tracing::{info, instrument, warn, Level};
 
 #[serde_as]
 #[derive(Deserialize, Debug)]
@@ -42,7 +42,9 @@ fn default_loglevel() -> Level {
     Level::INFO
 }
 
+#[instrument(skip_all, fields(path = %file_path.as_ref().display()))]
 pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>> {
+    info!("Loading configuration file");
     let raw_file = fs::read_to_string(file_path)?;
     let mut config: Config = toml::from_str(&raw_file)?;
     let mut names = HashSet::new();
@@ -50,6 +52,7 @@ pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>>
         if names.insert(prog.name.clone()) {
             continue;
         }
+        // there is 1124 power of 981 combinaisons, we are safe
         let new = generate_name();
         warn!(
             "Renaming Program with command `{}` as `{}` because `{}` is already taken",
@@ -59,6 +62,7 @@ pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>>
         );
         prog.name = new;
     }
+    info!("Configuration file loaded");
     Ok(config)
 }
 

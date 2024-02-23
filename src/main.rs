@@ -15,21 +15,23 @@ mod logger;
 mod program;
 
 use config::get_config;
-use std::{env::args, path::Path, process::exit, time::Duration};
-use tracing::{error, info, Level};
+use std::{env::args, error::Error, path::Path, process::exit, time::Duration};
+use tracing::error;
+use tracing_subscriber::EnvFilter;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
+    let (tracing_filter_handle, _file_guard) = logger::init_logger(Path::new("log.txt"))
+        .map_err(|e| format!("Error staring tracing: {e}"))?;
     let config_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let mut config = match get_config(&config_path) {
         Ok(v) => v,
         Err(e) => {
-            let _ = logger::init_logger(Path::new("log.txt"), &Level::INFO).unwrap();
             error!("Error while parsing the configuration file {config_path:?}: {e}",);
             exit(1);
         }
     };
-    let _file_guard = logger::init_logger(&config.logfile, &config.loglevel).unwrap();
-    info!("Starting...");
+    tracing_filter_handle
+        .reload(EnvFilter::try_from_default_env().unwrap_or(config.loglevel.as_str().into()))?;
 
     for program in &mut config.program {
         program.launch();
@@ -46,4 +48,5 @@ fn main() {
     for mut program in config.program {
         program.kill();
     }
+    Ok(())
 }

@@ -11,30 +11,28 @@
 /* ************************************************************************** */
 
 use std::{fs::File, io::Write, path::Path, time::Duration};
-use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    fmt::{self, Subscriber},
-    layer::SubscriberExt,
-    EnvFilter,
+    fmt::layer, layer::SubscriberExt, registry, reload, util::SubscriberInitExt, EnvFilter,
+    Registry,
 };
 
 pub fn init_logger(
     log_file: &Path,
-    log_level: &Level,
-) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
+) -> Result<(reload::Handle<EnvFilter, Registry>, WorkerGuard), Box<dyn std::error::Error>> {
     let mut file = File::options().append(true).create(true).open(log_file)?;
     if file.metadata()?.created()?.elapsed()? > Duration::from_secs(1) {
         file.write_all(b"\n")?;
     }
     let (file_writer, file_guard) = tracing_appender::non_blocking(file);
-    let subscriber = Subscriber::builder()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(log_level.as_str())),
-        )
-        .finish()
+
+    let (filter_layer, filter_handle) =
+        reload::Layer::new(EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info")));
+    registry()
+        .with(filter_layer)
+        .with(layer().with_writer(std::io::stdout))
         .with(tracing_journald::layer()?)
-        .with(fmt::layer().with_writer(file_writer));
-    tracing::subscriber::set_global_default(subscriber)?;
-    Ok(file_guard)
+        .with(layer().with_writer(file_writer))
+        .init();
+    Ok((filter_handle, file_guard))
 }
