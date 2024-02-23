@@ -6,9 +6,11 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/23 15:25:11 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/23 18:43:19 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
+
+mod child;
 
 use crate::config::Signal;
 use libc::kill;
@@ -17,14 +19,14 @@ use serde_with::{serde_as, DurationSeconds};
 use std::{
     collections::HashMap,
     env::current_dir,
-    fmt,
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
     process::{self, Command, Stdio},
     time::{Duration, Instant},
 };
 use tracing::{debug, error, info, instrument, trace, warn};
-use ChildStatus::*;
+use child::Child;
+use child::ChildStatus::*;
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -41,39 +43,6 @@ pub enum StartPolicy {
     #[default]
     Auto,
     Manual,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ChildStatus {
-    Stopped,
-    Running,
-    Waiting,
-    Crashed,
-	BeingKilled,
-	SentSIGKILL,
-	MaxRestarts,
-	Unknown,
-	ChildError(String),
-}
-
-impl fmt::Display for ChildStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-#[derive(Debug)]
-pub enum Process {
-    NotRunning(process::Command),
-    Running(process::Child),
-}
-
-#[derive(Debug)]
-pub struct Child {
-    pub process: Process,
-    pub last_update: Instant,
-    pub status: ChildStatus,
-    pub restats: isize,
 }
 
 #[serde_as]
@@ -121,6 +90,9 @@ pub struct Program {
     // runtime only
     #[serde(skip)]
     pub childs: Vec<Child>,
+    #[serde(default = "default_process_command")]
+    #[serde(skip)]
+	pub process_command: Option<process::Command>,
 }
 fn default_processes() -> u8 {
     1
@@ -131,12 +103,21 @@ fn default_timeout() -> Duration {
 pub fn default_max_restarts() -> isize {
 	10
 }
+pub fn default_process_command() -> Option<process::Command>{
+	None
+}
 pub fn generate_name() -> String {
     names::Generator::default().next().unwrap()
 }
 
-
 impl Program {
+	fn set_command(&mut self) {
+		match &self.process_command {
+			Some(_) => {},
+			None => self.process_command = Some(process::Command::new(&self.command)),
+		}
+	}
+
     #[instrument(skip_all)]
     fn create_child(
         &mut self,
@@ -151,7 +132,8 @@ impl Program {
             })
         };
         trace!(name = self.name, config = ?self.stdin, "Setting up stdin");
-        let stdin = setup_io(self.stdin.as_deref(), File::options().read(true)).unwrap(); // CHANGE
+        let stdin = setup_io(self.stdin.as_deref(), File::options().read(true))
+								.unwrap_or(Stdio::null());
         trace!(name = self.name, config = ?self.stdout, "Setting up stdout");
         let stdout = setup_io(
             self.stdout.as_deref(),
@@ -159,7 +141,7 @@ impl Program {
                 .write(true)
                 .truncate(self.stdout_truncate)
                 .create(true),
-        ).unwrap(); // CHANGE
+        ).unwrap_or(Stdio::null());
         trace!(name = self.name, config = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
@@ -167,7 +149,7 @@ impl Program {
                 .write(true)
                 .truncate(self.stderr_truncate)
                 .create(true),
-        ).unwrap(); // CHANGE
+        ).unwrap_or(Stdio::null());
         trace!(name = self.name, "Setting up stdio done");
 
         let mut env_vars = HashMap::new();
@@ -191,46 +173,42 @@ impl Program {
             .envs(env_vars)
             .current_dir(cwd)
             .spawn() {
-			Ok(new_child) => Child {
-				process: Process::Running(new_child),
-				last_update: Instant::now(),
-				status: Running,
-				restats: 0,
-			},
+			Ok(new_child) => Child::new(new_child),
 			Err(e) => {
 				error!("Error while creating child: {e}");
 				Child {
-					process: Process::NotRunning(Command::new(self.command.clone())),
+					process: None,
 					last_update: Instant::now(),
-					status: Crashed,
-					restats: 1,
+					status: ChildError,
+					restarts: 0,
 				}
 			}
 		}
     }
 
     pub fn launch(&mut self) {
+		self.set_command();
         for process_nb in 1..=self.processes {
             let mut new_process = Command::new(self.command.clone());
             let new_child = match self.start_policy {
                 StartPolicy::Auto => self.create_child(&mut new_process),
                 StartPolicy::Manual => Child {
-                    process: Process::NotRunning(new_process),
+                    process: None,
                     last_update: Instant::now(),
                     status: Waiting,
-					restats: 0,
+					restarts: 0,
                 },
             };
             match (&new_child.process, &new_child.status) {
                 (_, Crashed) => {}
-                (Process::Running(chd), _) => info!(
+                (Some(chd), _) => info!(
                     "{} ({}): Child {} now running. [{}]",
                     self.name,
                     self.command.display(),
                     process_nb,
                     chd.id()
                 ),
-                (Process::NotRunning(_cmd), _) => debug!(
+                (None, _) => debug!(
                     "{} ({}): Child {} loaded.",
                     self.name,
                     self.command.display(),
@@ -245,7 +223,7 @@ impl Program {
         let pre_string = format!("{} ({}):", self.name, self.command.display());
         for child in &mut self.childs {
             match &mut child.process {
-                Process::Running(ref mut c) => {
+                Some(ref mut c) => {
                     match c.try_wait() {
                         Ok(res) => match res {
                             Some(status) => {
@@ -258,10 +236,6 @@ impl Program {
                                     c.id()
                                 );
                                 unsafe { kill(c.id() as i32, self.stop_signal as i32) };
-                                // I'll look into the timeout later
-                                // lucas: faudrait un flag pour chaque Child pour savoir si on a déjà envoyé un signal et a quel Instant
-                                // pour que la prochaine fois on fasse un check si le child est en cours de shutdown, et si il faut le fermer de force car il a timeout
-								// Update -> timeoute gere dans update() -> try_force_kill()
                             }
                         },
                         Err(e) => {
@@ -269,18 +243,15 @@ impl Program {
                         }
                     }
                 }
-                Process::NotRunning(_c) => debug!("{pre_string} The process was not running"),
+                None => debug!("{pre_string} The process was not running"),
             }
         }
         info!("{pre_string} All children have been stopped");
     }
 
 	/// Returns updates a supposedly running child
-	/// 
-	/// Some()	-> Updated child <br />
-	/// None	-> Child is still running and well, no need to update
-	fn update_running_child(&self, process_child: &mut process::Child, 
-		child: &mut Child) -> () {
+	fn update_running_child(&self, child: &mut Child) {
+		let process_child = child.process.as_mut().unwrap();
 		let pid = process_child.id();
 		match process_child.try_wait() {
 			Ok(res) => match res {
@@ -290,21 +261,25 @@ impl Program {
 							if self.valid_exit_codes.contains(&(code as u8)) {
 								info!("Child {pid} exited successfully");
 								child.status = Stopped;
+								child.last_update = Instant::now();
 							}
 							else {
 								info!("Child {pid} exited with a status code of {exit_code} which is unexpected");
-								child.restats += 1;
-								if child.restats == self.max_restarts {
+								child.restarts += 1;
+								if child.restarts == self.max_restarts {
 									child.status = MaxRestarts;
+									child.last_update = Instant::now();
 								}
 								else {
 									child.status = Crashed;
+									child.last_update = Instant::now();
 								}
 							}
 						}
 						None => {
 							info!("Child {pid} has been killed by a signal");
 							child.status = Crashed;
+							child.last_update = Instant::now();
 						}
 					}
 				}
@@ -313,56 +288,67 @@ impl Program {
 			Err(e) => {
 				error!("Could not wait for process {}: {e}", process_child.id());
 				child.status = Unknown;
+				child.last_update = Instant::now();
 			}
 		};
 	}
 
-	fn try_force_kill(&self, child: &mut Child) -> () {
+	fn try_force_kill(&self, child: &mut Child) {
 		if (Instant::now() - child.last_update) > self.graceful_timeout {
 			match &mut child.process {
-				Process::Running(c) => {
+				Some(c) => {
 					child.last_update = Instant::now();
 					child.status = SentSIGKILL;
 					match &c.kill() {
-						Ok(_) => { },
+						Ok(_) => {},
 						Err(e) => error!("Could not kill process {}: {e}", c.id()),
 					}
 				}
-				Process::NotRunning(_) => {
+				None => {
 					warn!("Tried to kill a process that is not running");
+					child.last_update = Instant::now();
+					child.status = Stopped;
 				},
+			}
+		}
+	}
+
+	fn update_sigkill(&self, child: &mut Child) {
+		match &mut child.process {
+			Some(c) => {
+				match c.try_wait() {
+					Ok(Some(exit)) => {
+						//restart
+						child.last_update = Instant::now();
+						child.status = Stopped;
+					},
+					Ok(None) => {
+						child.last_update = Instant::now();
+						child.status = Stopped;
+					},
+					Err(e) => {},
+				}
+			}
+			None => {
+				child.last_update = Instant::now();
+				child.status = Stopped;
 			}
 		}
 	}
 
 	pub fn update(&mut self) {
 		for i in 0..self.childs.len() {
-			match &mut self.childs[i].process {
-				Process::Running(ref mut c) => {
-					match self.childs[i].status {
-						Running => self.update_running_child(&mut c, &mut self.childs[i]),
-						Unknown => {
-							// Unknown == N'as pas pu avoir l'exit status dans 
-							//	update_running_child(). Donc jsp si j'essaye de
-							//	re-update ou si j'attend la prochaine action
-							//	de l'utilisateur
-						},
-						BeingKilled => self.try_force_kill(&mut self.childs[i]),
-						SentSIGKILL => {
-							match c.try_wait() {
-								Ok(Some(_)) => self.childs[i].status = Crashed,
-								Ok(None) => {}, // Did not get killed yet
-								Err(e) => {
-									error!("Could not wait for child {}: {e}", c.id());
-									self.childs[i].status = ChildError(e.to_string());
-								},
-							}
-						},
-						_ => {},
-					};
-				},
-				Process::NotRunning(chld) => { }
+			let mut clone = self.childs[i].my_take();
+			match (&clone.process, self.childs[i].status) {
+				(Some(_), Running) => self.update_running_child(&mut clone),
+				(Some(_), BeingKilled) => self.try_force_kill(&mut clone),
+				(Some(c), SentSIGKILL) => {}, // Try to update the data
+				(Some(c), Unknown) => {}, // Try to get data
+				(Some(c), Crashed) => {}, // restart if possible
+				(Some(c), _)  => {}, // Should not do anything
+				(None, _) => {},
 			}
+			self.childs[i] = clone;
 		}
 	}
 
@@ -379,8 +365,8 @@ impl Program {
         println!("PID     | Status  | Uptime");
         for child in &self.childs {
             match &child.process {
-                Process::Running(p) => print!("{:<width$}|", p.id(), width = 8),
-                Process::NotRunning(_) => print!("None    |"),
+                Some(p) => print!("{:<width$}|", p.id(), width = 8),
+                None => print!("None    |"),
             }
             print!(" {:<width$} |", child.status, width = 8);
             println!(" {:?}", Instant::now() - child.last_update);

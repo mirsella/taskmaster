@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 19:23:54 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/23 18:20:58 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -35,7 +35,26 @@ fn main() {
         program.launch();
     }
 
-    std::thread::sleep(Duration::from_secs(1));
+	for program in &config.program {
+        println!("---");
+        program.status(false);
+    }
+    println!("---");
+
+    std::thread::sleep(Duration::from_millis(500));
+
+	for program in &mut config.program {
+        program.kill();
+    }
+	std::thread::sleep(Duration::from_millis(50));
+	for program in &mut config.program {
+        program.update();
+    }
+	
+	std::thread::sleep(Duration::from_millis(500));
+	for program in &mut config.program {
+        program.update();
+    }
 
     for program in &config.program {
         println!("---");
