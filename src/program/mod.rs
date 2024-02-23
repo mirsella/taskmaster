@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/23 12:06:29 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/23 15:25:11 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -43,7 +43,7 @@ pub enum StartPolicy {
     Manual,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChildStatus {
     Stopped,
     Running,
@@ -53,6 +53,7 @@ pub enum ChildStatus {
 	SentSIGKILL,
 	MaxRestarts,
 	Unknown,
+	ChildError(String),
 }
 
 impl fmt::Display for ChildStatus {
@@ -278,19 +279,20 @@ impl Program {
 	/// 
 	/// Some()	-> Updated child <br />
 	/// None	-> Child is still running and well, no need to update
-	fn update_running_child(&mut self, process_child: &mut process::Child, 
+	fn update_running_child(&self, process_child: &mut process::Child, 
 		child: &mut Child) -> () {
+		let pid = process_child.id();
 		match process_child.try_wait() {
 			Ok(res) => match res {
 				Some(exit_code) => {
 					match exit_code.code() {
 						Some(code) => {
 							if self.valid_exit_codes.contains(&(code as u8)) {
-								info!("Child exited successfully");
+								info!("Child {pid} exited successfully");
 								child.status = Stopped;
 							}
 							else {
-								info!("Child exited with a status code of {exit_code} which is unexpected");
+								info!("Child {pid} exited with a status code of {exit_code} which is unexpected");
 								child.restats += 1;
 								if child.restats == self.max_restarts {
 									child.status = MaxRestarts;
@@ -301,7 +303,7 @@ impl Program {
 							}
 						}
 						None => {
-							info!("Child has been killed by a signal");
+							info!("Child {pid} has been killed by a signal");
 							child.status = Crashed;
 						}
 					}
@@ -315,7 +317,7 @@ impl Program {
 		};
 	}
 
-	fn try_force_kill(&mut self, child: &mut Child) -> () {
+	fn try_force_kill(&self, child: &mut Child) -> () {
 		if (Instant::now() - child.last_update) > self.graceful_timeout {
 			match &mut child.process {
 				Process::Running(c) => {
@@ -334,23 +336,32 @@ impl Program {
 	}
 
 	pub fn update(&mut self) {
-		for mut child in &mut self.childs {
-			match &child.process {
-				Process::Running(mut c) => {
-					match child.status {
-						Running => self.update_running_child(&mut c, child),
+		for i in 0..self.childs.len() {
+			match &mut self.childs[i].process {
+				Process::Running(ref mut c) => {
+					match self.childs[i].status {
+						Running => self.update_running_child(&mut c, &mut self.childs[i]),
 						Unknown => {
 							// Unknown == N'as pas pu avoir l'exit status dans 
 							//	update_running_child(). Donc jsp si j'essaye de
 							//	re-update ou si j'attend la prochaine action
 							//	de l'utilisateur
 						},
-						BeingKilled => self.try_force_kill(child),
+						BeingKilled => self.try_force_kill(&mut self.childs[i]),
+						SentSIGKILL => {
+							match c.try_wait() {
+								Ok(Some(_)) => self.childs[i].status = Crashed,
+								Ok(None) => {}, // Did not get killed yet
+								Err(e) => {
+									error!("Could not wait for child {}: {e}", c.id());
+									self.childs[i].status = ChildError(e.to_string());
+								},
+							}
+						},
+						_ => {},
 					};
 				},
-				Process::NotRunning(chld) => {
-					
-				}
+				Process::NotRunning(chld) => { }
 			}
 		}
 	}
