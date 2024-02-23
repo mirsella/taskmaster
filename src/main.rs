@@ -20,13 +20,13 @@ use tracing::error;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let (tracing_filter_handle, _file_guard) = logger::init_logger(Path::new("log.txt"))
-        .map_err(|e| format!("Error staring tracing: {e}"))?;
+    let (tracing_filter_handle, _file_guard) =
+        logger::init_logger(Path::new("log.txt")).map_err(|e| format!("starting tracing: {e}"))?;
     let config_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let mut config = match get_config(&config_path) {
         Ok(v) => v,
         Err(e) => {
-            error!("Error while parsing the configuration file {config_path:?}: {e}",);
+            error!("parsing the configuration file {config_path:?}: {e}",);
             exit(1);
         }
     };

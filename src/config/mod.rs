@@ -62,7 +62,10 @@ pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>>
         );
         prog.name = new;
     }
-    info!("Configuration file loaded");
+    info!(
+        "Configuration file loaded with {} programs",
+        config.program.len()
+    );
     Ok(config)
 }
 

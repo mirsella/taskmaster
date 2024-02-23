@@ -145,7 +145,10 @@ impl Program {
             })
         };
         trace!(name = self.name, config = ?self.stdin, "Setting up stdin");
-        let stdin = setup_io(self.stdin.as_deref(), File::options().read(true))?;
+        let stdin = setup_io(
+            self.stdin.as_deref(),
+            File::options().read(true).create(false),
+        )?;
         trace!(name = self.name, config = ?self.stdout, "Setting up stdout");
         let stdout = setup_io(
             self.stdout.as_deref(),
@@ -197,7 +200,7 @@ impl Program {
                         status: ChildStatus::Running,
                     },
                     Err(e) => {
-                        error!("Error while creating child: {e}");
+                        error!("creating child: {e}");
                         Child {
                             process: Process::NotRunning(new_process),
                             start_time: None,
@@ -254,7 +257,7 @@ impl Program {
                             }
                         },
                         Err(e) => {
-                            error!("{pre_string} Error while trying to get child information: {e}")
+                            error!("{pre_string} trying to get child information: {e}")
                         }
                     }
                 }
