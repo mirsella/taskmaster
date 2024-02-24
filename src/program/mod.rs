@@ -271,7 +271,7 @@ impl Program {
         info!("{pre_string} All children have been stopped");
     }
 
-    // FIX: this function is only for debug, i will do something cleaner later
+    // FIX: this function is only for dev/debug, i will do something cleaner later
     #[allow(unused_results, unused_must_use)]
     pub fn status(&self) -> String {
         let mut buffer = String::new();

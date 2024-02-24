@@ -43,8 +43,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     loop {
-        info!("Drawing TUI");
-        error!("Drawing TUI");
         tui.draw(&config.program)?;
         if event::poll(Duration::from_millis(10))? {
             if let Event::Key(key) = event::read()? {
