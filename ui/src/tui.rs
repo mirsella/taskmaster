@@ -13,7 +13,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Terminal,
 };
-use std::{io, panic};
+use std::{io, panic, time::Instant};
 use tracing::trace;
 use tui_input::Input;
 use tui_logger::TuiLoggerWidget;
@@ -28,6 +28,7 @@ pub struct Tui {
     terminal: CrosstermTerminal,
     /// Input handler.
     pub input: Input,
+    pub start: Instant,
 }
 
 impl Tui {
@@ -51,6 +52,7 @@ impl Tui {
         Ok(Self {
             terminal,
             input: Input::default().with_value("placeholder input".to_string()),
+            start: Instant::now(),
         })
     }
 
@@ -86,8 +88,9 @@ impl Tui {
                     ),
                 layout[0],
             );
+            let fps = frame.count() as f64 / self.start.elapsed().as_secs_f64();
             frame.render_widget(
-                Paragraph::new(frame.count().to_string()).block(
+                Paragraph::new(fps.to_string()).block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)

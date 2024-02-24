@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     while start.elapsed().as_secs() < 10 {
         tui.draw()?;
-        if event::poll(Duration::from_millis(50))? {
+        if event::poll(Duration::from_millis(10))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Enter => {
