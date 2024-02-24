@@ -14,7 +14,7 @@ use ratatui::{
     Terminal,
 };
 use std::{io, panic, str::FromStr};
-use tracing::trace;
+use tracing::{trace, Level};
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
 
@@ -136,7 +136,7 @@ impl Tui {
                     Block::default()
                         .title_top(Line::from("Shell").alignment(Alignment::Center))
                         .title_bottom(
-                            Line::from("quit, start <name?>, stop <name?>, reload <path?>")
+                            Line::from("quit, start <name?>, stop <name?>, reload <path?>, loglevel <level>")
                                 .alignment(Alignment::Right),
                         )
                         .border_set(border::Set {
@@ -226,6 +226,7 @@ pub enum Command {
     Start(String),
     Stop(String),
     Reload(String),
+    LogLevel(Level),
 }
 impl FromStr for Command {
     type Err = ();
@@ -245,6 +246,8 @@ impl FromStr for Command {
             return Ok(Self::Stop(arg));
         } else if "reload".starts_with(cmd) {
             return Ok(Self::Reload(arg));
+        } else if "loglevel".starts_with(cmd) && !arg.is_empty() {
+            return Ok(Self::LogLevel(Level::from_str(&arg).map_err(|_| ())?));
         }
         Err(())
     }

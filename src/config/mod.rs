@@ -18,6 +18,7 @@ use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
 use std::{collections::HashSet, error::Error, fs, path::Path};
 use tracing::{info, instrument, warn, Level};
+use tracing_subscriber::{reload::Handle, EnvFilter, Registry};
 
 #[serde_as]
 #[derive(Deserialize, Debug)]
@@ -26,102 +27,115 @@ pub struct Config {
     #[serde_as(as = "DisplayFromStr")]
     pub loglevel: Level,
     pub program: Vec<Program>,
+
+    #[serde(skip)]
+    pub tracing_filter_handle: Option<Handle<EnvFilter, Registry>>,
 }
 fn default_loglevel() -> Level {
     Level::INFO
 }
 
-#[instrument(skip_all, fields(path = %file_path.as_ref().display()))]
-pub fn get_config(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>> {
-    info!("Loading configuration file");
-    let raw_file = fs::read_to_string(file_path)?;
-    let mut config: Config = toml::from_str(&raw_file)?;
-    let mut names = HashSet::new();
-    for prog in &mut config.program {
-        if names.insert(prog.name.clone()) {
-            continue;
-        }
-        // there is 1124 power of 981 combinaisons, we are safe
-        let new = generate_name();
-        warn!(
-            "Renaming Program with command `{}` as `{}` because `{}` is already taken",
-            prog.command.display(),
-            new,
-            prog.name
-        );
-        prog.name = new;
+impl Config {
+    pub fn reload_tracing_level(&mut self) -> Result<(), Box<dyn Error>> {
+        self.tracing_filter_handle
+            .as_ref()
+            .ok_or("tracing not initialized")?
+            .reload(EnvFilter::new(self.loglevel.as_str()))?;
+        Ok(())
     }
-    info!(
-        "Configuration file loaded with {} programs",
-        config.program.len()
-    );
-    Ok(config)
+
+    #[instrument(skip_all, fields(path = %file_path.as_ref().display()))]
+    pub fn load(file_path: impl AsRef<Path>) -> Result<Config, Box<dyn Error>> {
+        info!("Loading configuration file");
+        let raw_file = fs::read_to_string(file_path)?;
+        let mut config: Config = toml::from_str(&raw_file)?;
+        let mut names = HashSet::new();
+        for prog in &mut config.program {
+            if names.insert(prog.name.clone()) {
+                continue;
+            }
+            // there is 1124 power of 981 combinaisons, we are safe
+            let new = generate_name();
+            warn!(
+                "Renaming Program with command `{}` as `{}` because `{}` is already taken",
+                prog.command.display(),
+                new,
+                prog.name
+            );
+            prog.name = new;
+        }
+        info!(
+            "Configuration file loaded with {} programs",
+            config.program.len()
+        );
+        Ok(config)
+    }
 }
 
 #[cfg(test)]
 mod parsing_tests {
-    use super::{get_config, Signal};
+    use super::{Config, Signal};
     use crate::program::{RestartPolicy, StartPolicy};
     use std::path::Path;
     const CONFIG: &str = "config/tests.toml";
 
     #[test]
     fn default() {
-        get_config("config/default.toml").unwrap();
+        Config::load("config/default.toml").unwrap();
     }
     #[test]
     fn tests() {
-        get_config(CONFIG).unwrap();
+        Config::load(CONFIG).unwrap();
     }
     #[test]
     fn test_program() {
-        let c = get_config(CONFIG).unwrap();
+        let c = Config::load(CONFIG).unwrap();
         assert_eq!(c.program.len(), 1);
     }
     #[test]
     fn test_command() {
-        let c = get_config(CONFIG).unwrap();
+        let c = Config::load(CONFIG).unwrap();
         assert_eq!(c.program[0].command.display().to_string(), "ls");
     }
     #[test]
     fn test_start() {
-        let c = get_config(CONFIG).unwrap();
+        let c = Config::load(CONFIG).unwrap();
         assert_eq!(c.program[0].start_policy, StartPolicy::Manual);
     }
     #[test]
     fn test_exit_codes() {
-        let c = get_config(Path::new(CONFIG)).unwrap();
+        let c = Config::load(Path::new(CONFIG)).unwrap();
         assert_eq!(c.program[0].valid_exit_codes, vec![0])
     }
     #[test]
     fn test_exit_signals() {
-        let c = get_config(Path::new(CONFIG)).unwrap();
+        let c = Config::load(Path::new(CONFIG)).unwrap();
         assert_eq!(c.program[0].stop_signal, Signal::SIGKILL);
     }
     #[test]
     fn test_restart_policy() {
-        let c = get_config(CONFIG).unwrap();
+        let c = Config::load(CONFIG).unwrap();
         assert_eq!(c.program[0].restart_policy, RestartPolicy::Never);
     }
     #[test]
     fn test_umask() {
-        let c = get_config(CONFIG).unwrap();
+        let c = Config::load(CONFIG).unwrap();
         assert_eq!(c.program[0].umask.unwrap(), 0o002);
     }
     #[test]
     fn test_random_name() {
-        let c = get_config(CONFIG).unwrap();
+        let c = Config::load(CONFIG).unwrap();
         assert!(!c.program[0].name.is_empty());
     }
 
     #[test]
     #[should_panic]
     fn invalid_config() {
-        get_config("config/invalid.toml").unwrap();
+        Config::load("config/invalid.toml").unwrap();
     }
     #[test]
     fn invalid_config_no_command() {
-        dbg!(get_config("config/no_command.toml"))
+        dbg!(Config::load("config/no_command.toml"))
             .unwrap_err()
             .to_string()
             .contains("missing field `command`")
