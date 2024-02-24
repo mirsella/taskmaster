@@ -17,7 +17,7 @@ mod tui;
 
 use config::get_config;
 use crossterm::event::{self, Event, KeyCode};
-use std::{env::args, error::Error, path::Path, process::exit, time::Duration};
+use std::{env::args, error::Error, process::exit, time::Duration};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 use tui::{Command, Tui};
@@ -25,7 +25,7 @@ use tui::{Command, Tui};
 fn main() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new()?;
     let tracing_filter_handle =
-        logger::init_logger(Path::new("log.txt")).map_err(|e| format!("starting tracing: {e}"))?;
+        logger::init_logger("taskmaster.log").map_err(|e| format!("starting tracing: {e}"))?;
     let config_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let mut config = match get_config(&config_path) {
         Ok(v) => v,

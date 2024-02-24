@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-use std::{fs::File, io::Write, path::Path, time::Duration};
+use std::{fs::File, io::Write, time::Duration};
 use tracing_subscriber::{
     fmt::layer, layer::SubscriberExt, registry, reload, util::SubscriberInitExt, EnvFilter,
     Registry,
@@ -18,7 +18,7 @@ use tracing_subscriber::{
 use tui_logger::tracing_subscriber_layer;
 
 pub fn init_logger(
-    log_file: &Path,
+    log_file: &str,
 ) -> Result<reload::Handle<EnvFilter, Registry>, Box<dyn std::error::Error>> {
     let mut file = File::options().append(true).create(true).open(log_file)?;
     if file.metadata()?.created()?.elapsed()? > Duration::from_secs(1) {

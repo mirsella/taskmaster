@@ -16,27 +16,16 @@ use crate::program::{generate_name, Program};
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
-use std::{
-    collections::HashSet,
-    error::Error,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, error::Error, fs, path::Path};
 use tracing::{info, instrument, warn, Level};
 
 #[serde_as]
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub user: Option<String>,
-    #[serde(default = "default_logfile")]
-    pub logfile: PathBuf,
     #[serde(default = "default_loglevel")]
     #[serde_as(as = "DisplayFromStr")]
     pub loglevel: Level,
     pub program: Vec<Program>,
-}
-fn default_logfile() -> PathBuf {
-    "taskmaster.log".into()
 }
 fn default_loglevel() -> Level {
     Level::INFO
@@ -83,11 +72,6 @@ mod parsing_tests {
     #[test]
     fn tests() {
         get_config(CONFIG).unwrap();
-    }
-    #[test]
-    fn test_user() {
-        let c = get_config(CONFIG).unwrap();
-        assert_eq!(c.user, Some("nonrootuser".to_string()));
     }
     #[test]
     fn test_program() {
