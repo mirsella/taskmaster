@@ -109,6 +109,7 @@ impl Tui {
 
             // TODO: better status representation
             let status = programs.iter().map(|p| p.status()).collect::<String>();
+
             frame.render_widget(
                 Paragraph::new(status).block(
                     Block::default()

@@ -1,5 +1,3 @@
-user = "nonrootuser"
-
 [[program]]
 command = "ls"
 processes = 1

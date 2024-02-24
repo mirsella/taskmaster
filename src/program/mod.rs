@@ -23,7 +23,6 @@ use std::{
     collections::HashMap,
     env::current_dir,
     error::Error,
-    fmt,
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
     process::{self, Command, Stdio},
@@ -64,17 +63,6 @@ impl ChildStatus {
             ChildStatus::Crashed => Style::new().red().bold(),
         };
         Span::from(format!("{:?}", self)).style(style)
-    }
-}
-
-impl fmt::Display for ChildStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ChildStatus::Stopped => write!(f, "\x1b[33mStopped\x1b[0m"),
-            ChildStatus::Running => write!(f, "\x1b[32mRunning\x1b[0m"),
-            ChildStatus::Waiting => write!(f, "Waiting"),
-            ChildStatus::Crashed => write!(f, "\x1b[31mCrashed\x1b[0m"),
-        }
     }
 }
 
@@ -294,12 +282,13 @@ impl Program {
                 Process::Running(p) => write!(buffer, "{:<width$}|", p.id(), width = 8),
                 Process::NotRunning(_) => write!(buffer, "None    |"),
             };
-            write!(buffer, " {:<width$} |", child.status, width = 8);
+            write!(buffer, " {:<width$?} |", child.status, width = 8);
             match child.start_time {
                 Some(time) => writeln!(buffer, " {:?}", Instant::now() - time),
                 None => writeln!(buffer, " Unknown"),
             };
         }
+        writeln!(buffer);
         buffer
     }
 }
