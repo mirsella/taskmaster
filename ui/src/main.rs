@@ -1,11 +1,8 @@
 mod tui;
 
 use crossterm::event::{self, Event, KeyCode};
-use std::{
-    error::Error,
-    time::{Duration, Instant},
-};
-use tracing::{error, info, trace};
+use std::{error::Error, time::Duration};
+use tracing::{error, info, trace, warn};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tui::Tui;
 use tui_logger::tracing_subscriber_layer;
@@ -21,9 +18,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new()?;
 
     let data = "brbrbrbrbrbrbrbrfoobar";
-    error!(data);
-    info!(data);
-    trace!(data);
+    error!("This is an error message");
+    for _ in 0..20 {
+        info!(data);
+        trace!(data);
+    }
+    warn!("end!!");
 
     loop {
         tui.draw()?;
@@ -35,15 +35,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                         Some(cmd) => info!(?cmd, "Command entered"),
                         _ => (),
                     },
-                    KeyCode::Up => {
-                        tui.history_up();
-                    }
-                    KeyCode::Down => {
-                        tui.history_down();
-                    }
-                    _ => {
-                        tui.handle_other_event(&Event::Key(key));
-                    }
+                    KeyCode::Up => tui.history_up(),
+                    KeyCode::Down => tui.history_down(),
+                    _ => tui.handle_other_event(&Event::Key(key)),
                 }
             }
         }

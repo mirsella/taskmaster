@@ -15,7 +15,7 @@ use ratatui::{
 };
 use std::{io, panic, str::FromStr};
 use tracing::trace;
-use tui_input::{backend::crossterm::EventHandler, Input, InputRequest};
+use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
 pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
 
@@ -23,12 +23,10 @@ pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBacken
 ///
 /// It is responsible for setting up the terminal,
 /// initializing the interface and handling the draw events.
+#[derive(Debug)]
 pub struct Tui {
-    /// Interface to the Terminal.
     terminal: CrosstermTerminal,
-    /// Input handler.
     pub input: Input,
-    // History of the valid commands.
     pub history: Vec<String>,
     history_index: usize,
 }
@@ -53,7 +51,7 @@ impl Tui {
         }));
         Ok(Self {
             terminal,
-            input: Input::default().with_value("placeholder input".to_string()),
+            input: Input::default(),
             history: Vec::new(),
             history_index: 0,
         })
@@ -68,12 +66,27 @@ impl Tui {
             let layout = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(vec![
+                    Constraint::Min(1),
                     Constraint::Percentage(51),
                     Constraint::Percentage(50),
                     Constraint::Min(3),
                 ])
                 .split(frame.size());
 
+            frame.render_widget(
+                Paragraph::new(
+                    Line::styled(
+                        format!(
+                            "{}. by {}",
+                            env!("CARGO_PKG_NAME"),
+                            env!("CARGO_PKG_AUTHORS").replace(':', " and ")
+                        ),
+                        Style::default().fg(Color::Cyan),
+                    )
+                    .alignment(Alignment::Center),
+                ),
+                layout[0],
+            );
             frame.render_widget(
                 TuiLoggerWidget::default()
                     .output_line(false)
@@ -89,10 +102,15 @@ impl Tui {
                             .title_alignment(Alignment::Center)
                             .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT),
                     ),
-                layout[0],
+                layout[1],
             );
+
             frame.render_widget(
-                Paragraph::new(frame.count().to_string()).block(
+                Paragraph::new(format!(
+                    "history: {:?}, index: {}",
+                    self.history, self.history_index
+                ))
+                .block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)
@@ -103,8 +121,9 @@ impl Tui {
                         })
                         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT),
                 ),
-                layout[1],
+                layout[2],
             );
+
             let style = if self.input.value().parse::<Command>().is_ok() {
                 Style::new().light_green()
             } else {
@@ -114,8 +133,11 @@ impl Tui {
             frame.render_widget(
                 Paragraph::new(line).block(
                     Block::default()
-                        .title("Shell")
-                        .title_alignment(Alignment::Center)
+                        .title_top(Line::from("Shell").alignment(Alignment::Center))
+                        .title_bottom(
+                            Line::from("quit, start <name?>, stop <name?>, reload <path?>")
+                                .alignment(Alignment::Right),
+                        )
                         .border_set(border::Set {
                             top_left: symbols::line::NORMAL.vertical_right,
                             top_right: symbols::line::NORMAL.vertical_left,
@@ -123,13 +145,13 @@ impl Tui {
                         })
                         .borders(Borders::ALL),
                 ),
-                layout[2],
+                layout[3],
             );
             frame.set_cursor(
                 // Put cursor past the end of the input text. + 3 because one for offset and two for the "> ".
-                layout[2].x + self.input.visual_cursor() as u16 + 3,
+                layout[3].x + self.input.visual_cursor() as u16 + 3,
                 // Move one line down, from the border to the input line
-                layout[2].y + 1,
+                layout[3].y + 1,
             )
         })?;
         Ok(())
@@ -155,11 +177,12 @@ impl Tui {
             return;
         }
         self.history_index -= 1;
-        if let Some(cmd) = self.history.iter().rev().nth(self.history_index) {
+        if self.history_index == 0 {
             self.input.reset();
-            let _ = cmd
-                .chars()
-                .map(|c| self.input.handle(InputRequest::InsertChar(c)));
+            return;
+        }
+        if let Some(cmd) = self.history.iter().rev().nth(self.history_index - 1) {
+            self.input = Input::new(cmd.to_string());
         }
     }
 
@@ -168,11 +191,8 @@ impl Tui {
             return;
         }
         self.history_index += 1;
-        if let Some(cmd) = self.history.iter().rev().nth(self.history_index) {
-            self.input.reset();
-            let _ = cmd
-                .chars()
-                .map(|c| self.input.handle(InputRequest::InsertChar(c)));
+        if let Some(cmd) = self.history.iter().rev().nth(self.history_index - 1) {
+            self.input = Input::new(cmd.to_string());
         }
     }
 
@@ -213,6 +233,9 @@ impl FromStr for Command {
         let mut s = lower.split_whitespace();
         let cmd = s.next().ok_or(())?;
         let arg = s.next().unwrap_or_default().to_string();
+        if s.next().is_some() {
+            return Err(());
+        }
         if "quit".starts_with(cmd) {
             return Ok(Self::Quit);
         } else if "start".starts_with(cmd) {
