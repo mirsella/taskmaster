@@ -13,9 +13,9 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Terminal,
 };
-use std::{io, panic, time::Instant};
+use std::{io, panic, str::FromStr};
 use tracing::trace;
-use tui_input::Input;
+use tui_input::{backend::crossterm::EventHandler, Input, InputRequest};
 use tui_logger::TuiLoggerWidget;
 pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
 
@@ -28,7 +28,9 @@ pub struct Tui {
     terminal: CrosstermTerminal,
     /// Input handler.
     pub input: Input,
-    pub start: Instant,
+    // History of the valid commands.
+    pub history: Vec<String>,
+    history_index: usize,
 }
 
 impl Tui {
@@ -52,7 +54,8 @@ impl Tui {
         Ok(Self {
             terminal,
             input: Input::default().with_value("placeholder input".to_string()),
-            start: Instant::now(),
+            history: Vec::new(),
+            history_index: 0,
         })
     }
 
@@ -88,9 +91,8 @@ impl Tui {
                     ),
                 layout[0],
             );
-            let fps = frame.count() as f64 / self.start.elapsed().as_secs_f64();
             frame.render_widget(
-                Paragraph::new(fps.to_string()).block(
+                Paragraph::new(frame.count().to_string()).block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)
@@ -103,10 +105,12 @@ impl Tui {
                 ),
                 layout[1],
             );
-            let line = Line::from(vec![
-                "> ".into(),
-                Span::styled(self.input.value(), Style::new().red()),
-            ]);
+            let style = if self.input.value().parse::<Command>().is_ok() {
+                Style::new().light_green()
+            } else {
+                Style::new().light_red()
+            };
+            let line = Line::from(vec!["> ".into(), Span::styled(self.input.value(), style)]);
             frame.render_widget(
                 Paragraph::new(line).block(
                     Block::default()
@@ -145,9 +149,79 @@ impl Tui {
         )?;
         Ok(())
     }
+
+    pub fn history_down(&mut self) {
+        if self.history_index == 0 {
+            return;
+        }
+        self.history_index -= 1;
+        if let Some(cmd) = self.history.iter().rev().nth(self.history_index) {
+            self.input.reset();
+            let _ = cmd
+                .chars()
+                .map(|c| self.input.handle(InputRequest::InsertChar(c)));
+        }
+    }
+
+    pub fn history_up(&mut self) {
+        if self.history_index == self.history.len() {
+            return;
+        }
+        self.history_index += 1;
+        if let Some(cmd) = self.history.iter().rev().nth(self.history_index) {
+            self.input.reset();
+            let _ = cmd
+                .chars()
+                .map(|c| self.input.handle(InputRequest::InsertChar(c)));
+        }
+    }
+
+    pub fn handle_other_event(&mut self, key: &crossterm::event::Event) {
+        self.history_index = 0;
+        self.input.handle_event(key);
+    }
+    pub fn handle_enter(&mut self) -> Option<Command> {
+        let input = self.input.value().to_string();
+        self.history_index = 0;
+        self.input.reset();
+        match input.parse::<Command>() {
+            Ok(cmd) => {
+                self.history.push(input.to_string());
+                Some(cmd)
+            }
+            Err(_) => None,
+        }
+    }
 }
 impl Drop for Tui {
     fn drop(&mut self) {
         Tui::reset_term().expect("failed to reset the terminal");
+    }
+}
+
+#[derive(Debug)]
+pub enum Command {
+    Quit,
+    Start(String),
+    Stop(String),
+    Reload(String),
+}
+impl FromStr for Command {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let lower = s.to_lowercase();
+        let mut s = lower.split_whitespace();
+        let cmd = s.next().ok_or(())?;
+        let arg = s.next().unwrap_or_default().to_string();
+        if "quit".starts_with(cmd) {
+            return Ok(Self::Quit);
+        } else if "start".starts_with(cmd) {
+            return Ok(Self::Start(arg));
+        } else if "stop".starts_with(cmd) {
+            return Ok(Self::Stop(arg));
+        } else if "reload".starts_with(cmd) {
+            return Ok(Self::Reload(arg));
+        }
+        Err(())
     }
 }

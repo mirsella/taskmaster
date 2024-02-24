@@ -8,8 +8,9 @@ use std::{
 use tracing::{error, info, trace};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tui::Tui;
-use tui_input::backend::crossterm::EventHandler;
 use tui_logger::tracing_subscriber_layer;
+
+use crate::tui::Command;
 
 fn main() -> Result<(), Box<dyn Error>> {
     tui_logger::set_default_level(log::LevelFilter::Trace);
@@ -18,23 +19,30 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with(EnvFilter::new("ui=trace"))
         .init();
     let mut tui = Tui::new()?;
-    let start = Instant::now();
 
     let data = "brbrbrbrbrbrbrbrfoobar";
     error!(data);
     info!(data);
     trace!(data);
 
-    while start.elapsed().as_secs() < 10 {
+    loop {
         tui.draw()?;
         if event::poll(Duration::from_millis(10))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
-                    KeyCode::Enter => {
-                        info!("Enter key pressed !");
+                    KeyCode::Enter => match tui.handle_enter() {
+                        Some(Command::Quit) => break,
+                        Some(cmd) => info!(?cmd, "Command entered"),
+                        _ => (),
+                    },
+                    KeyCode::Up => {
+                        tui.history_up();
+                    }
+                    KeyCode::Down => {
+                        tui.history_down();
                     }
                     _ => {
-                        tui.input.handle_event(&Event::Key(key));
+                        tui.handle_other_event(&Event::Key(key));
                     }
                 }
             }
