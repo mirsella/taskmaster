@@ -14,7 +14,7 @@ use crate::config::Signal;
 use libc::kill;
 use ratatui::{
     style::{Style, Stylize},
-    text::{Line, Span},
+    text::Span,
 };
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};

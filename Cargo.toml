@@ -14,7 +14,6 @@ serde = { version = "1.0.197", features = ["derive"] }
 serde_with = "3.6.1"
 toml = "0.8.10"
 tracing = "0.1.40"
-tracing-appender = "0.2.3"
 tracing-journald = "0.3.0"
 tracing-subscriber = { version = "0.3.18", features = ["serde", "env-filter"] }
 tui-input = "0.8.0"

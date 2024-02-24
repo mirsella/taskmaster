@@ -107,15 +107,10 @@ impl Tui {
                 layout[1],
             );
 
+            // TODO: better status representation
+            let status = programs.iter().map(|p| p.status()).collect::<String>();
             frame.render_widget(
-                Paragraph::new(
-                    programs
-                        .iter()
-                        .map(|p| p.status())
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                )
-                .block(
+                Paragraph::new(status).block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)

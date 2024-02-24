@@ -24,7 +24,7 @@ use tui::{Command, Tui};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new()?;
-    let (tracing_filter_handle, _file_guard) =
+    let tracing_filter_handle =
         logger::init_logger(Path::new("log.txt")).map_err(|e| format!("starting tracing: {e}"))?;
     let config_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let mut config = match get_config(&config_path) {
@@ -42,11 +42,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         // TODO: if program is set to autostart
         program.launch();
     }
-
-    // TODO: will be in the loop of the tui
-    // for program in &config.program {
-    //     program.status(false);
-    // }
 
     loop {
         tui.draw(&config.program)?;
