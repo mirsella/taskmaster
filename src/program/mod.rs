@@ -12,8 +12,13 @@
 
 use crate::config::Signal;
 use libc::kill;
+use ratatui::{
+    style::{Style, Stylize},
+    text::{Line, Span},
+};
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
+use std::fmt::Write;
 use std::{
     collections::HashMap,
     env::current_dir,
@@ -49,6 +54,17 @@ pub enum ChildStatus {
     Running,
     Waiting,
     Crashed,
+}
+impl ChildStatus {
+    pub fn as_span(&self) -> Span {
+        let style = match self {
+            ChildStatus::Stopped => Style::new().gray().bold(),
+            ChildStatus::Running => Style::new().green().bold(),
+            ChildStatus::Waiting => Style::new().yellow().bold(),
+            ChildStatus::Crashed => Style::new().red().bold(),
+        };
+        Span::from(format!("{:?}", self)).style(style)
+    }
 }
 
 impl fmt::Display for ChildStatus {
@@ -267,27 +283,23 @@ impl Program {
         info!("{pre_string} All children have been stopped");
     }
 
-    pub fn status(&self, all: bool) {
-        match all {
-            true => println!(
-                "Program: {}\ncmd: {}\nargs: {:?}",
-                self.name,
-                self.command.display(),
-                self.args
-            ),
-            false => println!("Program: {}", self.name),
-        }
-        println!("PID     | Status  | Uptime");
+    // FIX: this function is only for debug, i will do something cleaner later
+    #[allow(unused_results, unused_must_use)]
+    pub fn status(&self) -> String {
+        let mut buffer = String::new();
+        writeln!(buffer, "Program: {}", self.name);
+        writeln!(buffer, "PID     | Status  | Uptime");
         for child in &self.childs {
             match &child.process {
-                Process::Running(p) => print!("{:<width$}|", p.id(), width = 8),
-                Process::NotRunning(_) => print!("None    |"),
-            }
-            print!(" {:<width$} |", child.status, width = 8);
+                Process::Running(p) => write!(buffer, "{:<width$}|", p.id(), width = 8),
+                Process::NotRunning(_) => write!(buffer, "None    |"),
+            };
+            write!(buffer, " {:<width$} |", child.status, width = 8);
             match child.start_time {
-                Some(time) => println!(" {:?}", Instant::now() - time),
-                None => println!(" Unknown"),
-            }
+                Some(time) => writeln!(buffer, " {:?}", Instant::now() - time),
+                None => writeln!(buffer, " Unknown"),
+            };
         }
+        buffer
     }
 }

@@ -17,6 +17,8 @@ use std::{io, panic, str::FromStr};
 use tracing::trace;
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
+
+use crate::program::Program;
 pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
 
 /// Representation of a terminal user interface.
@@ -61,13 +63,13 @@ impl Tui {
     ///
     /// [`Draw`]: tui::Terminal::draw
     /// [`rendering`]: crate::ui:render
-    pub fn draw(&mut self) -> io::Result<()> {
+    pub fn draw(&mut self, programs: &[Program]) -> io::Result<()> {
         self.terminal.draw(|frame| {
             let layout = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(vec![
                     Constraint::Min(1),
-                    Constraint::Percentage(51),
+                    Constraint::Percentage(50),
                     Constraint::Percentage(50),
                     Constraint::Min(3),
                 ])
@@ -106,10 +108,13 @@ impl Tui {
             );
 
             frame.render_widget(
-                Paragraph::new(format!(
-                    "history: {:?}, index: {}",
-                    self.history, self.history_index
-                ))
+                Paragraph::new(
+                    programs
+                        .iter()
+                        .map(|p| p.status())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                )
                 .block(
                     Block::default()
                         .title("Status")

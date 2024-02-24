@@ -16,6 +16,7 @@ use tracing_subscriber::{
     fmt::layer, layer::SubscriberExt, registry, reload, util::SubscriberInitExt, EnvFilter,
     Registry,
 };
+use tui_logger::tracing_subscriber_layer;
 
 pub fn init_logger(
     log_file: &Path,
@@ -26,12 +27,15 @@ pub fn init_logger(
     }
     let (file_writer, file_guard) = tracing_appender::non_blocking(file);
 
+    tui_logger::set_default_level(log::LevelFilter::Trace);
+
     let (filter_layer, filter_handle) =
         reload::Layer::new(EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info")));
     registry()
         .with(filter_layer)
-        .with(layer().with_writer(std::io::stdout))
+        .with(tracing_subscriber_layer())
         .with(tracing_journald::layer()?)
+        // FIX: could be replaced by a simple file writer
         .with(layer().with_writer(file_writer))
         .init();
     Ok((filter_handle, file_guard))
