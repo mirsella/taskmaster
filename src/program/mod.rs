@@ -157,7 +157,7 @@ impl Program {
         let stdout = setup_io(
             self.stdout.as_deref(),
             File::options()
-                .write(true)
+                .append(true)
                 .truncate(self.stdout_truncate)
                 .create(true),
         )?;
@@ -165,7 +165,7 @@ impl Program {
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
-                .write(true)
+                .append(true)
                 .truncate(self.stderr_truncate)
                 .create(true),
         )?;
