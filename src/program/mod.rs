@@ -6,9 +6,11 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 19:26:04 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/23 18:43:19 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
+
+mod child;
 
 use crate::config::Signal;
 use libc::kill;
@@ -29,6 +31,8 @@ use std::{
     time::{Duration, Instant},
 };
 use tracing::{debug, error, info, instrument, trace, warn};
+use child::Child;
+use child::ChildStatus::*;
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -45,38 +49,6 @@ pub enum StartPolicy {
     #[default]
     Auto,
     Manual,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub enum ChildStatus {
-    Stopped,
-    Running,
-    Waiting,
-    Crashed,
-}
-impl ChildStatus {
-    pub fn as_span(&self) -> Span {
-        let style = match self {
-            ChildStatus::Stopped => Style::new().gray().bold(),
-            ChildStatus::Running => Style::new().green().bold(),
-            ChildStatus::Waiting => Style::new().yellow().bold(),
-            ChildStatus::Crashed => Style::new().red().bold(),
-        };
-        Span::from(format!("{:?}", self)).style(style)
-    }
-}
-
-#[derive(Debug)]
-pub enum Process {
-    NotRunning(process::Command),
-    Running(process::Child),
-}
-
-#[derive(Debug)]
-pub struct Child {
-    pub process: Process,
-    pub start_time: Option<Instant>,
-    pub status: ChildStatus,
 }
 
 #[serde_as]
@@ -99,7 +71,8 @@ pub struct Program {
     pub valid_exit_codes: Vec<u8>,
     #[serde(default)]
     pub restart_policy: RestartPolicy,
-    pub max_restarts: Option<u32>,
+    #[serde(default = "default_max_restarts")]
+    pub max_restarts: isize,
     #[serde(default)]
     pub stop_signal: Signal,
     #[serde(default = "default_timeout")]
@@ -123,6 +96,9 @@ pub struct Program {
     // runtime only
     #[serde(skip)]
     pub childs: Vec<Child>,
+    #[serde(default = "default_process_command")]
+    #[serde(skip)]
+	pub process_command: Option<process::Command>,
 }
 fn default_processes() -> u8 {
     1
@@ -130,16 +106,29 @@ fn default_processes() -> u8 {
 fn default_timeout() -> Duration {
     Duration::from_secs(10)
 }
+pub fn default_max_restarts() -> isize {
+	10
+}
+pub fn default_process_command() -> Option<process::Command>{
+	None
+}
 pub fn generate_name() -> String {
     names::Generator::default().next().unwrap()
 }
 
 impl Program {
+	fn set_command(&mut self) {
+		match &self.process_command {
+			Some(_) => {},
+			None => self.process_command = Some(process::Command::new(&self.command)),
+		}
+	}
+
     #[instrument(skip_all)]
     fn create_child(
         &mut self,
         cmd: &mut process::Command,
-    ) -> Result<process::Child, Box<dyn Error>> {
+    ) -> Child {
         let setup_io = |path: Option<&Path>, file_options: &mut OpenOptions| {
             path.map_or(Ok(Stdio::null()), |path| {
                 file_options
@@ -160,7 +149,7 @@ impl Program {
                 .append(true)
                 .truncate(self.stdout_truncate)
                 .create(true),
-        )?;
+        ).unwrap_or(Stdio::null());
         trace!(name = self.name, config = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
@@ -168,14 +157,14 @@ impl Program {
                 .append(true)
                 .truncate(self.stderr_truncate)
                 .create(true),
-        )?;
+        ).unwrap_or(Stdio::null());
         trace!(name = self.name, "Setting up stdio done");
 
         let mut env_vars = HashMap::new();
         for entry in self.env.clone() {
             let parts = entry
                 .split_once('=')
-                .ok_or(format!("Invalid env var: {entry}"))?;
+                .ok_or(format!("Invalid env var: {entry}")).unwrap(); // CHANGE
             env_vars.insert(parts.0.to_string(), parts.1.to_string());
         }
 
@@ -183,53 +172,51 @@ impl Program {
             Some(path) => PathBuf::from(path),
             None => current_dir().unwrap_or_default(),
         };
-        Ok(cmd
-            .stdin(stdin)
-            .stdout(stdout)
-            .stderr(stderr)
+
+        match cmd
+		.stdin(stdin)
+		.stdout(stdout)
+		.stderr(stderr)
             .args(self.args.clone())
             .envs(env_vars)
             .current_dir(cwd)
-            .spawn()
-            .map_err(|e| format!("command: {e}"))?)
+            .spawn() {
+			Ok(new_child) => Child::new(new_child),
+			Err(e) => {
+				error!("Error while creating child: {e}");
+				Child {
+					process: None,
+					last_update: Instant::now(),
+					status: ChildError,
+					restarts: 0,
+				}
+			}
+		}
     }
 
-    /// start the childs if needed (start_policy = auto) or set the program as notrunning otherwise
-    pub fn start(&mut self) {
+    pub fn launch(&mut self) {
+		self.set_command();
         for process_nb in 1..=self.processes {
             let mut new_process = Command::new(self.command.clone());
             let new_child = match self.start_policy {
-                StartPolicy::Auto => match self.create_child(&mut new_process) {
-                    Ok(new_child) => Child {
-                        process: Process::Running(new_child),
-                        start_time: Some(Instant::now()),
-                        status: ChildStatus::Running,
-                    },
-                    Err(e) => {
-                        error!("creating child: {e}");
-                        Child {
-                            process: Process::NotRunning(new_process),
-                            start_time: None,
-                            status: ChildStatus::Crashed,
-                        }
-                    }
-                },
+                StartPolicy::Auto => self.create_child(&mut new_process),
                 StartPolicy::Manual => Child {
-                    process: Process::NotRunning(new_process),
-                    start_time: None,
-                    status: ChildStatus::Waiting,
+                    process: None,
+                    last_update: Instant::now(),
+                    status: Waiting,
+					          restarts: 0,
                 },
             };
             match (&new_child.process, &new_child.status) {
-                (_, ChildStatus::Crashed) => {}
-                (Process::Running(chd), _) => info!(
+                (_, Crashed) => {}
+                (Some(chd), _) => info!(
                     "{} ({}): Child {} now running. [{}]",
                     self.name,
                     self.command.display(),
                     process_nb,
                     chd.id()
                 ),
-                (Process::NotRunning(_cmd), _) => debug!(
+                (None, _) => debug!(
                     "{} ({}): Child {} loaded.",
                     self.name,
                     self.command.display(),
@@ -246,7 +233,7 @@ impl Program {
         let pre_string = format!("{} ({}):", self.name, self.command.display());
         for child in &mut self.childs {
             match &mut child.process {
-                Process::Running(ref mut c) => {
+                Some(ref mut c) => {
                     match c.try_wait() {
                         Ok(res) => match res {
                             Some(status) => {
@@ -259,9 +246,6 @@ impl Program {
                                     c.id()
                                 );
                                 unsafe { kill(c.id() as i32, self.stop_signal as i32) };
-                                // I'll look into the timeout later
-                                // lucas: faudrait un flag pour chaque Child pour savoir si on a déjà envoyé un signal et a quel Instant
-                                // pour que la prochaine fois on fasse un check si le child est en cours de shutdown, et si il faut le fermer de force car il a timeout
                             }
                         },
                         Err(e) => {
@@ -269,11 +253,114 @@ impl Program {
                         }
                     }
                 }
-                Process::NotRunning(_c) => debug!("{pre_string} The process was not running"),
+                None => debug!("{pre_string} The process was not running"),
             }
         }
         info!("{pre_string} All children have been stopped");
     }
+
+	/// Returns updates a supposedly running child
+	fn update_running_child(&self, child: &mut Child) {
+		let process_child = child.process.as_mut().unwrap();
+		let pid = process_child.id();
+		match process_child.try_wait() {
+			Ok(res) => match res {
+				Some(exit_code) => {
+					match exit_code.code() {
+						Some(code) => {
+							if self.valid_exit_codes.contains(&(code as u8)) {
+								info!("Child {pid} exited successfully");
+								child.status = Stopped;
+								child.last_update = Instant::now();
+							}
+							else {
+								info!("Child {pid} exited with a status code of {exit_code} which is unexpected");
+								child.restarts += 1;
+								if child.restarts == self.max_restarts {
+									child.status = MaxRestarts;
+									child.last_update = Instant::now();
+								}
+								else {
+									child.status = Crashed;
+									child.last_update = Instant::now();
+								}
+							}
+						}
+						None => {
+							info!("Child {pid} has been killed by a signal");
+							child.status = Crashed;
+							child.last_update = Instant::now();
+						}
+					}
+				}
+				None => { },
+			}
+			Err(e) => {
+				error!("Could not wait for process {}: {e}", process_child.id());
+				child.status = Unknown;
+				child.last_update = Instant::now();
+			}
+		};
+	}
+
+	fn try_force_kill(&self, child: &mut Child) {
+		if (Instant::now() - child.last_update) > self.graceful_timeout {
+			match &mut child.process {
+				Some(c) => {
+					child.last_update = Instant::now();
+					child.status = SentSIGKILL;
+					match &c.kill() {
+						Ok(_) => {},
+						Err(e) => error!("Could not kill process {}: {e}", c.id()),
+					}
+				}
+				None => {
+					warn!("Tried to kill a process that is not running");
+					child.last_update = Instant::now();
+					child.status = Stopped;
+				},
+			}
+		}
+	}
+
+	fn update_sigkill(&self, child: &mut Child) {
+		match &mut child.process {
+			Some(c) => {
+				match c.try_wait() {
+					Ok(Some(exit)) => {
+						//restart
+						child.last_update = Instant::now();
+						child.status = Stopped;
+					},
+					Ok(None) => {
+						child.last_update = Instant::now();
+						child.status = Stopped;
+					},
+					Err(e) => {},
+				}
+			}
+			None => {
+				child.last_update = Instant::now();
+				child.status = Stopped;
+			}
+		}
+	}
+
+	pub fn update(&mut self) {
+		for i in 0..self.childs.len() {
+			let mut clone = self.childs[i].my_take();
+			match (&clone.process, self.childs[i].status) {
+				(Some(_), Running) => self.update_running_child(&mut clone),
+				(Some(_), BeingKilled) => self.try_force_kill(&mut clone),
+				(Some(c), SentSIGKILL) => {}, // Try to update the data
+				(Some(c), Unknown) => {}, // Try to get data
+				(Some(c), Crashed) => {}, // restart if possible
+				(Some(c), _)  => {}, // Should not do anything
+				(None, _) => {},
+			}
+			self.childs[i] = clone;
+		}
+	}
 
     /// TODO: start the graceful shutdown of the childs: send the stop signal, and mark them as stopping
     pub fn stop(&mut self) {
@@ -304,8 +391,8 @@ impl Program {
         writeln!(buffer, "PID     | Status  | Uptime");
         for child in &self.childs {
             match &child.process {
-                Process::Running(p) => write!(buffer, "{:<width$}|", p.id(), width = 8),
-                Process::NotRunning(_) => write!(buffer, "None    |"),
+                Some(p) => write!(buffer, "{:<width$}|", p.id(), width = 8),
+                None(_) => write!(buffer, "None    |"),
             };
             write!(buffer, " {:<width$?} |", child.status, width = 8);
             match child.start_time {
@@ -315,5 +402,14 @@ impl Program {
         }
         writeln!(buffer);
         buffer
+    }
+}
+
+#[cfg(test)]
+mod parsing_tests {
+
+    #[test]
+    fn default() {
+        
     }
 }
