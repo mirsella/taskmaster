@@ -17,7 +17,7 @@ mod tui;
 
 use config::Config;
 use crossterm::event::{self, Event, KeyCode};
-use program::Process;
+use program::child::ChildStatus;
 use std::{env::args, error::Error, process::exit, time::Duration};
 use tracing::{error, info};
 use tui::{Command, Tui};
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             && config.program.iter().all(|p| {
                 p.childs
                     .iter()
-                    .all(|c| matches!(c.process, Process::NotRunning(_)))
+                    .all(|c| matches!(c.status, ChildStatus::Stopped))
             })
         {
             info!("All programs have stopped. Quitting");
@@ -86,13 +86,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                             if name.is_empty() {
                                 info!("Starting all programs");
                                 for program in &mut config.program {
-                                    program.start();
+                                    if let Err(e) = program.start() {
+                                        error!(error = e, "Starting program");
+                                    }
                                 }
                             } else if let Some(p) =
                                 config.program.iter_mut().find(|p| p.name == name)
                             {
                                 info!(name, "Starting program");
-                                p.start()
+                                if let Err(e) = p.start() {
+                                    error!(error = e, "Starting program");
+                                }
                             } else {
                                 error!(name, "Program not found");
                             }
@@ -101,13 +105,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                             if name.is_empty() {
                                 info!(name, "Stopping all programs");
                                 for program in &mut config.program {
-                                    program.start();
+                                    program.stop();
                                 }
                             } else if let Some(p) =
                                 config.program.iter_mut().find(|p| p.name == name)
                             {
                                 info!(name, "Stopping program");
-                                p.start()
+                                p.stop()
                             } else {
                                 error!(name, "Program not found");
                             }
