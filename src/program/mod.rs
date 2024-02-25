@@ -190,10 +190,12 @@ impl Program {
             .args(self.args.clone())
             .envs(env_vars)
             .current_dir(cwd)
-            .spawn()?)
+            .spawn()
+            .map_err(|e| format!("command: {e}"))?)
     }
 
-    pub fn launch(&mut self) {
+    /// start the childs if needed (start_policy = auto) or set the program as notrunning otherwise
+    pub fn start(&mut self) {
         for process_nb in 1..=self.processes {
             let mut new_process = Command::new(self.command.clone());
             let new_child = match self.start_policy {
@@ -238,6 +240,8 @@ impl Program {
         }
     }
 
+    /// Kill the program and all its children. for graceful shutdown, check stop().
+    // TODO: `kill` as the name suggest, should force kill the childs
     pub fn kill(&mut self) {
         let pre_string = format!("{} ({}):", self.name, self.command.display());
         for child in &mut self.childs {
@@ -269,6 +273,27 @@ impl Program {
             }
         }
         info!("{pre_string} All children have been stopped");
+    }
+
+    /// TODO: start the graceful shutdown of the childs: send the stop signal, and mark them as stopping
+    pub fn stop(&mut self) {
+        todo!()
+    }
+    /// TODO: mark the program to be restarted
+    pub fn restart(&mut self) {
+        todo!()
+    }
+    /// TODO: apply a new config to the program, and restart if needed
+    pub fn update(&mut self, new: Program) {
+        todo!()
+    }
+    /// TODO: this is the main function that will be called by the main loop.
+    /// it will check the status of the children, and:
+    /// - force kill if the graceful kill timeout is reached
+    /// - start childs if needed while in restart, or crash and if it should
+    pub fn tick(&mut self) {
+        // TODO:
+        todo!()
     }
 
     // FIX: this function is only for dev/debug, i will do something cleaner later

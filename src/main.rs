@@ -17,11 +17,10 @@ mod tui;
 
 use config::Config;
 use crossterm::event::{self, Event, KeyCode};
+use program::Process;
 use std::{env::args, error::Error, process::exit, time::Duration};
 use tracing::{error, info};
 use tui::{Command, Tui};
-
-use crate::program::StartPolicy;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new()?;
@@ -39,22 +38,55 @@ fn main() -> Result<(), Box<dyn Error>> {
     config.reload_tracing_level()?;
 
     for program in &mut config.program {
-        if program.start_policy == StartPolicy::Auto {
-            program.launch();
-        }
+        program.start();
     }
 
+    let mut pending_quit = false;
     loop {
+        if pending_quit
+            && config.program.iter().all(|p| {
+                p.childs
+                    .iter()
+                    .all(|c| matches!(c.process, Process::NotRunning(_)))
+            })
+        {
+            info!("All programs have stopped. Quitting");
+            break;
+        }
         tui.draw(&config.program)?;
         if event::poll(Duration::from_millis(10))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Enter => match tui.handle_enter() {
-                        Some(Command::Quit) => break,
+                        Some(Command::Quit) => {
+                            info!("Gracefully shutting down programs");
+                            pending_quit = true;
+                            for program in &mut config.program {
+                                program.stop();
+                            }
+                        }
                         Some(Command::LogLevel(level)) => {
                             info!(?level, "Changing log level");
                             config.loglevel = level;
                             config.reload_tracing_level()?;
+                        }
+                        Some(Command::Reload(mut path)) => {
+                            if path.is_empty() {
+                                path = config_path.clone()
+                            }
+                            info!(path, "Reloading configuration");
+                            match Config::load(&path) {
+                                Ok(new_config) => config.update(new_config)?,
+                                Err(e) => {
+                                    error!(path, error = e, "reloading the configuration file")
+                                }
+                            }
+                        }
+                        Some(Command::Start(name)) => {
+                            info!(?name, "Starting program");
+                            if let Some(p) = config.program.iter_mut().find(|p| p.name == name) {
+                                p.start()
+                            }
                         }
                         Some(cmd) => info!(?cmd, "Command entered"),
                         _ => (),
@@ -65,11 +97,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-    }
-    info!("Exiting, gracefully stopping programs");
-    for mut program in config.program {
-        // TODO: should gracefully stop the program with the timeout or kill it
-        program.kill();
     }
     Ok(())
 }

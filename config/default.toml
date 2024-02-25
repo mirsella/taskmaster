@@ -22,4 +22,4 @@ user = "root"
 [[program]]
 name = "ShouldFail"
 command = "does not exist"
-processes = 2
+processes = 1

@@ -12,7 +12,7 @@
 
 pub mod signal;
 
-use crate::program::{generate_name, Program};
+use crate::program::{generate_name, Program, StartPolicy};
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
@@ -69,6 +69,26 @@ impl Config {
             config.program.len()
         );
         Ok(config)
+    }
+    pub fn update(&mut self, new: Config) -> Result<(), Box<dyn Error>> {
+        if self.loglevel != new.loglevel {
+            self.loglevel = new.loglevel;
+            self.reload_tracing_level()?;
+        }
+        for program in self.program.iter_mut() {
+            if !new.program.iter().any(|p| p.name == program.name) {
+                program.stop();
+            }
+        }
+        for mut new in new.program.into_iter() {
+            if let Some(old) = self.program.iter_mut().find(|p| p.name == new.name) {
+                old.update(new);
+            } else {
+                new.start();
+                self.program.push(new);
+            }
+        }
+        Ok(())
     }
 }
 
