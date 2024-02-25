@@ -165,21 +165,15 @@ impl Program {
             current_dir().map_err(|e| format!("couldn't get the current directory: {e}"))?,
         );
 
-        match cmd
+        let child = cmd
             .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr)
             .args(self.args.clone())
             .envs(env_vars)
             .current_dir(cwd)
-            .spawn()
-        {
-            Ok(new_child) => Ok(Child::new(new_child)),
-            Err(e) => {
-                error!("Error while creating child: {e}");
-                Err(e.into())
-            }
-        }
+            .spawn()?;
+        Ok(Child::new(child))
     }
 
     pub fn start(&mut self) -> Result<(), Box<dyn Error>> {
@@ -251,33 +245,34 @@ impl Program {
         let process_child = child.process.as_mut().unwrap();
         let pid = process_child.id();
         match process_child.try_wait() {
-            Ok(res) => match res {
-                Some(exit_code) => match exit_code.code() {
-                    Some(code) => {
-                        if self.valid_exit_codes.contains(&(code as u8)) {
-                            info!("Child {pid} exited successfully");
-                            child.status = Stopped;
-                            child.last_update = Instant::now();
-                        } else {
-                            info!("Child {pid} exited with a status code of {exit_code} which is unexpected");
-                            child.restarts += 1;
-                            if child.restarts == self.max_restarts {
-                                child.status = MaxRestarts;
+            Ok(res) => {
+                if let Some(exit_code) = res {
+                    match exit_code.code() {
+                        Some(code) => {
+                            if self.valid_exit_codes.contains(&(code as u8)) {
+                                info!("Child {pid} exited successfully");
+                                child.status = Stopped;
                                 child.last_update = Instant::now();
                             } else {
-                                child.status = Crashed;
-                                child.last_update = Instant::now();
+                                info!("Child {pid} exited with a status code of {exit_code} which is unexpected");
+                                child.restarts += 1;
+                                if child.restarts == self.max_restarts {
+                                    child.status = MaxRestarts;
+                                    child.last_update = Instant::now();
+                                } else {
+                                    child.status = Crashed;
+                                    child.last_update = Instant::now();
+                                }
                             }
                         }
+                        None => {
+                            info!("Child {pid} has been killed by a signal");
+                            child.status = Crashed;
+                            child.last_update = Instant::now();
+                        }
                     }
-                    None => {
-                        info!("Child {pid} has been killed by a signal");
-                        child.status = Crashed;
-                        child.last_update = Instant::now();
-                    }
-                },
-                None => {}
-            },
+                }
+            }
             Err(e) => {
                 error!("Could not wait for process {}: {e}", process_child.id());
                 child.status = Unknown;
@@ -310,8 +305,8 @@ impl Program {
         match &mut child.process {
             Some(c) => {
                 match c.try_wait() {
-                    Ok(Some(exit)) => {
-                        //restart
+                    //restart
+                    Ok(Some(_exit)) => {
                         child.last_update = Instant::now();
                         child.status = Stopped;
                     }
@@ -319,7 +314,7 @@ impl Program {
                         child.last_update = Instant::now();
                         child.status = Stopped;
                     }
-                    Err(e) => {}
+                    Err(_e) => {}
                 }
             }
             None => {
@@ -338,7 +333,7 @@ impl Program {
         todo!()
     }
     /// TODO: apply a new config to the program, and restart if needed
-    pub fn update(&mut self, new: Program) {
+    pub fn update(&mut self, _new: Program) {
         todo!()
     }
     /// TODO: this is the main function that will be called by the main loop.
@@ -351,10 +346,10 @@ impl Program {
             match (&clone.process, self.childs[i].status) {
                 (Some(_), Running) => self.update_running_child(&mut clone),
                 (Some(_), BeingKilled) => self.try_force_kill(&mut clone),
-                (Some(c), SentSIGKILL) => {} // Try to update the data
-                (Some(c), Unknown) => {}     // Try to get data
-                (Some(c), Crashed) => {}     // restart if possible
-                (Some(c), _) => {}           // Should not do anything
+                (Some(_c), SentSIGKILL) => {} // Try to update the data
+                (Some(_c), Unknown) => {}     // Try to get data
+                (Some(_c), Crashed) => {}     // restart if possible
+                (Some(_c), _) => {}           // Should not do anything
                 (None, _) => {}
             }
             self.childs[i] = clone;
@@ -362,6 +357,7 @@ impl Program {
     }
 
     // FIX: this function is only for dev/debug, i will do something cleaner later
+    #[allow(unused_results, unused_must_use)]
     pub fn status(&self) -> String {
         let mut buffer = String::new();
         writeln!(buffer, "Program: {}", self.name);

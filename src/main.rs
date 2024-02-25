@@ -38,7 +38,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     config.reload_tracing_level()?;
 
     for program in &mut config.program {
-        program.start();
+        if let Err(e) = program.start() {
+            error!(error = e, "starting program");
+        }
     }
 
     let mut pending_quit = false;

@@ -12,12 +12,12 @@
 
 pub mod signal;
 
-use crate::program::{generate_name, Program, StartPolicy};
+use crate::program::{generate_name, Program};
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
 use std::{collections::HashSet, error::Error, fs, path::Path};
-use tracing::{info, instrument, warn, Level};
+use tracing::{error, info, instrument, warn, Level};
 use tracing_subscriber::{reload::Handle, EnvFilter, Registry};
 
 #[serde_as]
@@ -84,7 +84,9 @@ impl Config {
             if let Some(old) = self.program.iter_mut().find(|p| p.name == new.name) {
                 old.update(new);
             } else {
-                new.start();
+                if let Err(e) = new.start() {
+                    error!(error = e, "starting program");
+                }
                 self.program.push(new);
             }
         }
