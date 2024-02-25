@@ -83,13 +83,36 @@ fn main() -> Result<(), Box<dyn Error>> {
                             }
                         }
                         Some(Command::Start(name)) => {
-                            info!(?name, "Starting program");
-                            if let Some(p) = config.program.iter_mut().find(|p| p.name == name) {
+                            if name.is_empty() {
+                                info!("Starting all programs");
+                                for program in &mut config.program {
+                                    program.start();
+                                }
+                            } else if let Some(p) =
+                                config.program.iter_mut().find(|p| p.name == name)
+                            {
+                                info!(name, "Starting program");
                                 p.start()
+                            } else {
+                                error!(name, "Program not found");
                             }
                         }
-                        Some(cmd) => info!(?cmd, "Command entered"),
-                        _ => (),
+                        Some(Command::Stop(name)) => {
+                            if name.is_empty() {
+                                info!(name, "Stopping all programs");
+                                for program in &mut config.program {
+                                    program.start();
+                                }
+                            } else if let Some(p) =
+                                config.program.iter_mut().find(|p| p.name == name)
+                            {
+                                info!(name, "Stopping program");
+                                p.start()
+                            } else {
+                                error!(name, "Program not found");
+                            }
+                        }
+                        None => (),
                     },
                     KeyCode::Up => tui.history_up(),
                     KeyCode::Down => tui.history_down(),
