@@ -21,6 +21,8 @@ use std::{env::args, error::Error, process::exit, time::Duration};
 use tracing::{error, info};
 use tui::{Command, Tui};
 
+use crate::program::StartPolicy;
+
 fn main() -> Result<(), Box<dyn Error>> {
     let mut tui = Tui::new()?;
     let tracing_filter_handle =
@@ -36,10 +38,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     config.tracing_filter_handle = Some(tracing_filter_handle);
     config.reload_tracing_level()?;
 
-    // FIXME: should be in program.update
     for program in &mut config.program {
-        // TODO: only if program is set to autostart
-        program.launch();
+        if program.start_policy == StartPolicy::Auto {
+            program.launch();
+        }
     }
 
     loop {
