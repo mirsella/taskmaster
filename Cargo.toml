@@ -1,16 +1,21 @@
 [package]
 name = "taskmaster"
+authors = ["lgillard", "nguiard"]
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+crossterm = "0.27.0"
 libc = "0.2.153"
+log = "0.4.20"
 names = "0.14.0"
+ratatui = "0.26.1"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_with = "3.6.1"
 toml = "0.8.10"
 tracing = "0.1.40"
-tracing-appender = "0.2.3"
 tracing-journald = "0.3.0"
-tracing-subscriber = { version = "0.3.18", features = ["serde"] }
+tracing-subscriber = { version = "0.3.18", features = ["serde", "env-filter"] }
+tui-input = "0.8.0"
+tui-logger = { version = "0.11.0", features = ["tracing-support"] }
 users = "0.11.0"

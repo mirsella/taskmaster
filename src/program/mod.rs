@@ -14,11 +14,17 @@ mod child;
 
 use crate::config::Signal;
 use libc::kill;
+use ratatui::{
+    style::{Style, Stylize},
+    text::Span,
+};
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
+use std::fmt::Write;
 use std::{
     collections::HashMap,
     env::current_dir,
+    error::Error,
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
     process::{self, Command, Stdio},
@@ -132,13 +138,15 @@ impl Program {
             })
         };
         trace!(name = self.name, config = ?self.stdin, "Setting up stdin");
-        let stdin = setup_io(self.stdin.as_deref(), File::options().read(true))
-								.unwrap_or(Stdio::null());
+        let stdin = setup_io(
+            self.stdin.as_deref(),
+            File::options().read(true).create(false),
+        )?;
         trace!(name = self.name, config = ?self.stdout, "Setting up stdout");
         let stdout = setup_io(
             self.stdout.as_deref(),
             File::options()
-                .write(true)
+                .append(true)
                 .truncate(self.stdout_truncate)
                 .create(true),
         ).unwrap_or(Stdio::null());
@@ -146,7 +154,7 @@ impl Program {
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
-                .write(true)
+                .append(true)
                 .truncate(self.stderr_truncate)
                 .create(true),
         ).unwrap_or(Stdio::null());
@@ -196,7 +204,7 @@ impl Program {
                     process: None,
                     last_update: Instant::now(),
                     status: Waiting,
-					restarts: 0,
+					          restarts: 0,
                 },
             };
             match (&new_child.process, &new_child.status) {
@@ -219,6 +227,8 @@ impl Program {
         }
     }
 
+    /// Kill the program and all its children. for graceful shutdown, check stop().
+    // TODO: `kill` as the name suggest, should force kill the childs
     pub fn kill(&mut self) {
         let pre_string = format!("{} ({}):", self.name, self.command.display());
         for child in &mut self.childs {
@@ -239,7 +249,7 @@ impl Program {
                             }
                         },
                         Err(e) => {
-                            error!("{pre_string} Error while trying to get child information: {e}")
+                            error!("{pre_string} trying to get child information: {e}")
                         }
                     }
                 }
@@ -352,26 +362,46 @@ impl Program {
 		}
 	}
 
-    pub fn status(&self, all: bool) {
-        match all {
-            true => println!(
-                "Program: {}\ncmd: {}\nargs: {:?}",
-                self.name,
-                self.command.display(),
-                self.args
-            ),
-            false => println!("Program: {}", self.name),
-        }
-        println!("PID     | Status  | Uptime");
+    /// TODO: start the graceful shutdown of the childs: send the stop signal, and mark them as stopping
+    pub fn stop(&mut self) {
+        todo!()
+    }
+    /// TODO: mark the program to be restarted
+    pub fn restart(&mut self) {
+        todo!()
+    }
+    /// TODO: apply a new config to the program, and restart if needed
+    pub fn update(&mut self, new: Program) {
+        todo!()
+    }
+    /// TODO: this is the main function that will be called by the main loop.
+    /// it will check the status of the children, and:
+    /// - force kill if the graceful kill timeout is reached
+    /// - start childs if needed while in restart, or crash and if it should
+    pub fn tick(&mut self) {
+        // TODO:
+        todo!()
+    }
+
+    // FIX: this function is only for dev/debug, i will do something cleaner later
+    #[allow(unused_results, unused_must_use)]
+    pub fn status(&self) -> String {
+        let mut buffer = String::new();
+        writeln!(buffer, "Program: {}", self.name);
+        writeln!(buffer, "PID     | Status  | Uptime");
         for child in &self.childs {
             match &child.process {
-                Some(p) => print!("{:<width$}|", p.id(), width = 8),
-                None => print!("None    |"),
-            }
-            print!(" {:<width$} |", child.status, width = 8);
-            println!(" {:?}", Instant::now() - child.last_update);
-
+                Some(p) => write!(buffer, "{:<width$}|", p.id(), width = 8),
+                None(_) => write!(buffer, "None    |"),
+            };
+            write!(buffer, " {:<width$?} |", child.status, width = 8);
+            match child.start_time {
+                Some(time) => writeln!(buffer, " {:?}", Instant::now() - time),
+                None => writeln!(buffer, " Unknown"),
+            };
         }
+        writeln!(buffer);
+        buffer
     }
 }
 

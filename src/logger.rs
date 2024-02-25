@@ -10,30 +10,30 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-use std::{env, fs::File, io::Write, path::Path};
-use tracing::Level;
-use tracing_appender::non_blocking::WorkerGuard;
+use std::{fs::File, io::Write, time::Duration};
 use tracing_subscriber::{
-    fmt::{self, Subscriber},
-    layer::SubscriberExt,
+    fmt::layer, layer::SubscriberExt, registry, reload, util::SubscriberInitExt, EnvFilter,
+    Registry,
 };
+use tui_logger::tracing_subscriber_layer;
 
 pub fn init_logger(
-    log_file: &Path,
-    log_level: &Level,
-) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
-    let log_level = env::var("LOG_LEVEL")
-        .map(|str| str.parse::<Level>().unwrap_or(*log_level))
-        .unwrap_or(*log_level);
+    log_file: &str,
+) -> Result<reload::Handle<EnvFilter, Registry>, Box<dyn std::error::Error>> {
     let mut file = File::options().append(true).create(true).open(log_file)?;
-    file.write_all(b"\n")?;
-    let (file_writer, file_guard) = tracing_appender::non_blocking(file);
+    if file.metadata()?.created()?.elapsed()? > Duration::from_secs(1) {
+        file.write_all(b"\n")?;
+    }
 
-    let subscriber = Subscriber::builder()
-        .with_max_level(log_level)
-        .finish()
+    tui_logger::set_default_level(log::LevelFilter::Trace);
+
+    let (filter_layer, filter_handle) =
+        reload::Layer::new(EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info")));
+    registry()
+        .with(filter_layer)
+        .with(tracing_subscriber_layer())
         .with(tracing_journald::layer()?)
-        .with(fmt::layer().with_writer(file_writer));
-    tracing::subscriber::set_global_default(subscriber)?;
-    Ok(file_guard)
+        .with(layer().with_writer(file))
+        .init();
+    Ok(filter_handle)
 }
