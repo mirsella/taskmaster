@@ -94,8 +94,8 @@ pub struct Program {
     pub childs: Vec<Child>,
     #[serde(skip)]
     pub force_restart: bool,
-    #[serde(skip)]
-    pub update_asked: bool,
+    // #[serde(skip)]
+    // pub update_asked: bool,
 }
 fn default_processes() -> u8 {
     1
@@ -110,7 +110,7 @@ pub fn generate_name() -> String {
     names::Generator::default().next().unwrap()
 }
 
-fn is_our_fd(path: &Path) -> Result<bool, Box<dyn Error>> {
+fn is_our_fd(path: impl AsRef<Path>) -> Result<bool, Box<dyn Error>> {
     let resolved_path = fs::canonicalize(path)?;
     let resolved_path = resolved_path
         .to_str()
@@ -246,28 +246,6 @@ impl Program {
         self.force_restart = true;
         self.stop();
     }
-    /// Applies a new config to the program, and restart if needed
-    pub fn update(&mut self, new: Program) {
-        if self.corresponds_to(&new) {
-            info!("Not updating {}: configuration didn't change", self.name);
-            return;
-        }
-        if self.update_asked {
-            if self
-                .childs
-                .iter()
-                .all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
-            {
-                self.childs.clear();
-            }
-            self.assign_new(new);
-            self.update_asked = false;
-            self.force_restart = false;
-        } else {
-            self.restart();
-            self.update_asked = true;
-        }
-    }
     /// this need to be called regularly, to check the status of the program and its children.
     pub fn tick(&mut self) -> Result<(), Box<dyn Error>> {
         if self.force_restart
@@ -302,54 +280,46 @@ impl Program {
         }
         Ok(())
     }
-
-    /// To check if two Programs have the same configuration
-    pub fn corresponds_to(&self, other: &Program) -> bool {
-        if self.name != other.name
-            || self.cmd != other.cmd
-            || self.processes != other.processes
-            || self.min_runtime != other.min_runtime
-            || self.valid_exit_codes != other.valid_exit_codes
-            || self.max_restarts != other.max_restarts
-            || self.stop_signal != other.stop_signal
-            || self.graceful_timeout != other.graceful_timeout
-            || self.stdin != other.stdin
-            || self.stdout != other.stdout
-            || self.stderr != other.stderr
-            || self.stdout_truncate != other.stdout_truncate
-            || self.stderr_truncate != other.stderr_truncate
-            || self.args != other.args
-            || self.env != other.env
-            || self.cwd != other.cwd
-            || self.umask != other.umask
-            || self.user != other.user
-            || self.start_policy != other.start_policy
-        {
-            return false;
+    pub fn update(&mut self, new: Program) {
+        if self == &new {
+            trace!(
+                name = self.name,
+                "Not updating: configuration didn't change"
+            );
+            return;
         }
-        true
+        debug!(
+            name = self.name,
+            "Updating configuration, restartings processes"
+        );
+        let childs = mem::take(&mut self.childs);
+        let _ = mem::replace(self, new);
+        self.childs = childs;
+        self.restart();
     }
+}
 
-    pub fn assign_new(&mut self, other: Program) {
-        self.name = other.name;
-        self.cmd = other.cmd;
-        self.processes = other.processes;
-        self.min_runtime = other.min_runtime;
-        self.valid_exit_codes = other.valid_exit_codes;
-        self.max_restarts = other.max_restarts;
-        self.stop_signal = other.stop_signal;
-        self.graceful_timeout = other.graceful_timeout;
-        self.stdin = other.stdin;
-        self.stdout = other.stdout;
-        self.stderr = other.stderr;
-        self.stdout_truncate = other.stdout_truncate;
-        self.stderr_truncate = other.stderr_truncate;
-        self.args = other.args;
-        self.env = other.env;
-        self.cwd = other.cwd;
-        self.umask = other.umask;
-        self.user = other.user;
-        self.start_policy = other.start_policy;
+impl PartialEq for Program {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.cmd == other.cmd
+            && self.processes == other.processes
+            && self.min_runtime == other.min_runtime
+            && self.valid_exit_codes == other.valid_exit_codes
+            && self.max_restarts == other.max_restarts
+            && self.stop_signal == other.stop_signal
+            && self.graceful_timeout == other.graceful_timeout
+            && self.stdin == other.stdin
+            && self.stdout == other.stdout
+            && self.stderr == other.stderr
+            && self.stdout_truncate == other.stdout_truncate
+            && self.stderr_truncate == other.stderr_truncate
+            && self.args == other.args
+            && self.env == other.env
+            && self.cwd == other.cwd
+            && self.umask == other.umask
+            && self.user == other.user
+            && self.start_policy == other.start_policy
     }
 }
 
@@ -357,58 +327,58 @@ impl Program {
 mod program_tests {
     use super::is_our_fd;
     use crate::config::Config;
-    use std::{path::Path, process::id};
+    use std::process::id;
 
     #[test]
     #[should_panic]
     fn open_stdin() {
-        is_our_fd(Path::new("/dev/stdin")).unwrap();
+        assert!(is_our_fd("/dev/stdin").unwrap());
     }
 
     #[test]
     #[should_panic]
     fn open_stdout() {
-        is_our_fd(Path::new("/dev/stdout")).unwrap();
+        assert!(is_our_fd("/dev/stdout").unwrap());
     }
 
     #[test]
     #[should_panic]
     fn open_stderr() {
-        is_our_fd(Path::new("/dev/stderr")).unwrap();
+        assert!(is_our_fd("/dev/stderr").unwrap());
     }
 
     #[test]
     #[should_panic]
     fn open_self_zero() {
-        is_our_fd(Path::new("/proc/self/fd/0")).unwrap();
+        assert!(is_our_fd("/proc/self/fd/0").unwrap());
     }
 
     #[test]
     #[should_panic]
     fn open_self_one() {
-        is_our_fd(Path::new("/proc/self/fd/1")).unwrap();
+        assert!(is_our_fd("/proc/self/fd/1").unwrap());
     }
 
     #[test]
     #[should_panic]
     fn open_self_pid_zero() {
-        is_our_fd(Path::new(format!("/proc/{}/fd/0", id()).as_str())).unwrap();
+        assert!(is_our_fd(format!("/proc/{}/fd/0", id()).as_str()).unwrap());
     }
 
     #[test]
     #[should_panic]
     fn open_self_pid_one() {
-        is_our_fd(Path::new(format!("/proc/{}/fd/1", id()).as_str())).unwrap();
+        assert!(is_our_fd(format!("/proc/{}/fd/1", id()).as_str()).unwrap());
     }
 
     #[test]
     fn open_bash() {
-        is_our_fd(Path::new("/bin/bash")).unwrap();
+        assert!(!is_our_fd("/bin/bash").unwrap());
     }
 
     #[test]
     fn open_basic_config() {
-        is_our_fd(Path::new("config/default.toml")).unwrap();
+        assert!(!is_our_fd("config/default.toml").unwrap());
     }
 
     #[test]
@@ -417,7 +387,7 @@ mod program_tests {
         let link = Config::load("config/default_link.toml").unwrap();
 
         for i in 0..base.program.len() {
-            assert!(base.program[i].corresponds_to(&link.program[i]))
+            assert_eq!(base.program[i], link.program[i])
         }
     }
 
@@ -428,8 +398,7 @@ mod program_tests {
         let diff = Config::load("config/default_diff.toml").unwrap();
 
         for i in 0..base.program.len() {
-            assert!(base.program[i].corresponds_to(&diff.program[i]))
+            assert_eq!(base.program[i], diff.program[i])
         }
     }
 }
-
