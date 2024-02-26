@@ -137,11 +137,11 @@ impl Child {
 
     pub fn last_update(&self) -> Instant {
         match self.status {
-            Status::Finished(t, _) => t,
-            Status::Running(t) => t,
-            Status::Stopped(t) => t,
-            Status::Terminating(t) => t,
-            Status::Starting(t) => t,
+            Status::Finished(t, _)
+            | Status::Running(t)
+            | Status::Stopped(t)
+            | Status::Terminating(t)
+            | Status::Starting(t) => t,
         }
     }
 }

@@ -266,20 +266,13 @@ impl Program {
             self.start()?;
         }
 
-        let finished_before = self
-            .childs
-            .iter()
-            .all(|c| matches!(c.status, Status::Finished(_, _)));
+        let finished_before = self.all_stopped();
         let mut childs = mem::take(&mut self.childs);
         for child in &mut childs {
             let _ = child.tick(self);
         }
         self.childs = childs;
-        let finished_after = self
-            .childs
-            .iter()
-            .all(|c| matches!(c.status, Status::Finished(_, _)));
-        if !finished_before && finished_after {
+        if !finished_before && self.all_stopped() {
             info!(
                 name = self.name,
                 "All ({}) processes finished", self.processes
@@ -305,22 +298,11 @@ impl Program {
         self.childs = childs;
         self.restart();
     }
-    /// Used to display the status of the program in the TUI
-    pub fn status(&self) -> Row {
-        let name = self.name.clone();
-        let since = self.childs.iter().max_by_key(|x| x.last_update());
-        let running: usize = self
-            .childs
+    /// if all the children are stopped or finished
+    pub fn all_stopped(&self) -> bool {
+        self.childs
             .iter()
-            .filter(|&c| matches!(c.status, Status::Running(_)))
-            .count();
-        let since_str = match since {
-            Some(c) => format!("{:?}", c.last_update().elapsed()),
-            None => "Unknown".to_string(),
-        };
-        let status_str = format!("{running}/{}", self.childs.len());
-
-        Row::new(vec![name, status_str, since_str])
+            .all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
     }
 }
 
