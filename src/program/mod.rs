@@ -203,12 +203,7 @@ impl Program {
             return Err("Some processes are still running".into());
         }
         info!(name = self.name, "starting process...");
-        debug!(
-            name = self.name,
-            "\nargs = {:?}\nenv = {:?}",
-            self.args.clone(),
-            self.env.clone()
-        );
+        debug!(name = self.name, cmd = ?self.cmd, args = ?self.args, env = ?self.env);
         for _ in 0..self.processes {
             let child = self.create_child()?;
             self.childs.push(child);
