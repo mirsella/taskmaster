@@ -17,9 +17,9 @@ mod tui;
 
 use config::Config;
 use crossterm::event::{self, Event, KeyCode};
-use program::child::ChildStatus;
+use program::{child::Status, StartPolicy};
 use std::{env::args, error::Error, process::exit, time::Duration};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tui::{Command, Tui};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -38,8 +38,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     config.reload_tracing_level()?;
 
     for program in &mut config.program {
-        if let Err(e) = program.start() {
-            error!(error = e, "starting program");
+        if let StartPolicy::Auto = program.start_policy {
+            if let Err(e) = program.start() {
+                error!(error = e, "starting program");
+            }
         }
     }
 
@@ -49,18 +51,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             && config.program.iter().all(|p| {
                 p.childs
                     .iter()
-                    .all(|c| matches!(c.status, ChildStatus::Stopped))
+                    .all(|c| matches!(c.status, Status::Stopped(_) | Status::Finished(_, _)))
             })
         {
             info!("All programs have stopped. Quitting");
             break;
         }
         tui.draw(&config.program)?;
+        for program in &mut config.program {
+            program.tick()?;
+        }
         if event::poll(Duration::from_millis(10))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Enter => match tui.handle_enter() {
                         Some(Command::Quit) => {
+                            if pending_quit {
+                                warn!("Force quitting");
+                                break;
+                            }
                             info!("Gracefully shutting down programs");
                             pending_quit = true;
                             for program in &mut config.program {
@@ -68,7 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             }
                         }
                         Some(Command::LogLevel(level)) => {
-                            info!(?level, "Changing log level");
+                            info!(%level, "Changing log level");
                             config.loglevel = level;
                             config.reload_tracing_level()?;
                         }
@@ -89,15 +98,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 info!("Starting all programs");
                                 for program in &mut config.program {
                                     if let Err(e) = program.start() {
-                                        error!(error = e, "Starting program");
+                                        error!(error = e, name = program.name, "Starting program");
                                     }
                                 }
                             } else if let Some(p) =
                                 config.program.iter_mut().find(|p| p.name == name)
                             {
-                                info!(name, "Starting program");
+                                info!(name, "Starting");
                                 if let Err(e) = p.start() {
-                                    error!(error = e, "Starting program");
+                                    error!(error = e, "Starting");
                                 }
                             } else {
                                 error!(name, "Program not found");
@@ -105,15 +114,30 @@ fn main() -> Result<(), Box<dyn Error>> {
                         }
                         Some(Command::Stop(name)) => {
                             if name.is_empty() {
-                                info!(name, "Stopping all programs");
+                                info!("Stopping all programs");
                                 for program in &mut config.program {
                                     program.stop();
                                 }
                             } else if let Some(p) =
                                 config.program.iter_mut().find(|p| p.name == name)
                             {
-                                info!(name, "Stopping program");
+                                info!(name, "Stopping");
                                 p.stop()
+                            } else {
+                                error!(name, "Program not found");
+                            }
+                        }
+                        Some(Command::Restart(name)) => {
+                            if name.is_empty() {
+                                info!("Restarting all programs");
+                                for program in &mut config.program {
+                                    program.restart();
+                                }
+                            } else if let Some(p) =
+                                config.program.iter_mut().find(|p| p.name == name)
+                            {
+                                info!(name, "Restarting");
+                                p.restart()
                             } else {
                                 error!(name, "Program not found");
                             }
@@ -126,6 +150,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+    }
+    for program in &mut config.program {
+        program.kill();
     }
     Ok(())
 }

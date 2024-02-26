@@ -58,7 +58,7 @@ impl Config {
             let new = generate_name();
             warn!(
                 "Renaming Program with command `{}` as `{}` because `{}` is already taken",
-                prog.command.display(),
+                prog.cmd.display(),
                 new,
                 prog.name
             );
@@ -75,7 +75,7 @@ impl Config {
             self.loglevel = new.loglevel;
             self.reload_tracing_level()?;
         }
-        for program in self.program.iter_mut() {
+        for program in &mut self.program {
             if !new.program.iter().any(|p| p.name == program.name) {
                 program.stop();
             }
@@ -117,7 +117,7 @@ mod parsing_tests {
     #[test]
     fn test_command() {
         let c = Config::load(CONFIG).unwrap();
-        assert_eq!(c.program[0].command.display().to_string(), "ls");
+        assert_eq!(c.program[0].cmd.display().to_string(), "ls");
     }
     #[test]
     fn test_start() {

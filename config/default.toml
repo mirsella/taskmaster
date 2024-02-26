@@ -19,7 +19,7 @@ cwd = "/tmp"
 umask = 0o777
 user = "root"
 
-[[program]]
-name = "ShouldFail"
-command = "does not exist"
-processes = 1
+# [[program]]
+# name = "ShouldFail"
+# command = "does not exist"
+# processes = 1

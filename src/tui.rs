@@ -108,8 +108,10 @@ impl Tui {
             );
 
             // TODO: better status representation
-            let status = programs.iter().map(|p| p.status()).collect::<String>();
-
+            let status = programs[0]
+                .childs
+                .iter()
+                .fold(String::new(), |acc, c| acc + &format!("{:?}\n", c.status));
             frame.render_widget(
                 Paragraph::new(status).block(
                     Block::default()
@@ -135,10 +137,7 @@ impl Tui {
                 Paragraph::new(line).block(
                     Block::default()
                         .title_top(Line::from("Shell").alignment(Alignment::Center))
-                        .title_bottom(
-                            Line::from("quit, start <name?>, stop <name?>, reload <path?>, loglevel <level>")
-                                .alignment(Alignment::Right),
-                        )
+                        .title_bottom(Line::from(Command::HELP).alignment(Alignment::Right))
                         .border_set(border::Set {
                             top_left: symbols::line::NORMAL.vertical_right,
                             top_right: symbols::line::NORMAL.vertical_left,
@@ -225,6 +224,7 @@ pub enum Command {
     Quit,
     Start(String),
     Stop(String),
+    Restart(String),
     Reload(String),
     LogLevel(Level),
 }
@@ -244,6 +244,8 @@ impl FromStr for Command {
             return Ok(Self::Start(arg));
         } else if "stop".starts_with(cmd) {
             return Ok(Self::Stop(arg));
+        } else if "restart".starts_with(cmd) {
+            return Ok(Self::Restart(arg));
         } else if "reload".starts_with(cmd) {
             return Ok(Self::Reload(arg));
         } else if "loglevel".starts_with(cmd) && !arg.is_empty() {
@@ -251,4 +253,8 @@ impl FromStr for Command {
         }
         Err(())
     }
+}
+impl Command {
+    pub const HELP: &'static str =
+        "quit (2x to force) | start <name?> | stop <name?> | restart <name?> | reload <path?> | loglevel <level>";
 }
