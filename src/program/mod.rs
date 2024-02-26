@@ -355,61 +355,60 @@ impl Program {
 
 #[cfg(test)]
 mod program_tests {
-    use std::{path::Path, process::id};
-
-    use super::follow_link;
+    use super::is_our_fd;
     use crate::config::Config;
+    use std::{path::Path, process::id};
 
     #[test]
     #[should_panic]
     fn open_stdin() {
-        follow_link(Path::new("/dev/stdin"), id()).unwrap();
+        is_our_fd(Path::new("/dev/stdin")).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn open_stdout() {
-        follow_link(Path::new("/dev/stdout"), id()).unwrap();
+        is_our_fd(Path::new("/dev/stdout")).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn open_stderr() {
-        follow_link(Path::new("/dev/stderr"), id()).unwrap();
+        is_our_fd(Path::new("/dev/stderr")).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn open_self_zero() {
-        follow_link(Path::new("/proc/self/fd/0"), id()).unwrap();
+        is_our_fd(Path::new("/proc/self/fd/0")).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn open_self_one() {
-        follow_link(Path::new("/proc/self/fd/1"), id()).unwrap();
+        is_our_fd(Path::new("/proc/self/fd/1")).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn open_self_pid_zero() {
-        follow_link(Path::new(format!("/proc/{}/fd/0", id()).as_str()), id()).unwrap();
+        is_our_fd(Path::new(format!("/proc/{}/fd/0", id()).as_str())).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn open_self_pid_one() {
-        follow_link(Path::new(format!("/proc/{}/fd/1", id()).as_str()), id()).unwrap();
+        is_our_fd(Path::new(format!("/proc/{}/fd/1", id()).as_str())).unwrap();
     }
 
     #[test]
     fn open_bash() {
-        follow_link(Path::new("/bin/bash"), id()).unwrap();
+        is_our_fd(Path::new("/bin/bash")).unwrap();
     }
 
     #[test]
     fn open_basic_config() {
-        follow_link(Path::new("config/default.toml"), id()).unwrap();
+        is_our_fd(Path::new("config/default.toml")).unwrap();
     }
 
     #[test]
