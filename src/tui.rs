@@ -12,7 +12,7 @@ use ratatui::{
     style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Row, Table},
     Terminal,
 };
 use std::{fmt::Write, io, panic, str::FromStr};
@@ -109,7 +109,7 @@ impl Tui {
 
             let status = status(programs);
             frame.render_widget(
-                Paragraph::new(status).block(
+                status.block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)
@@ -215,10 +215,12 @@ impl Tui {
     }
 }
 
-fn status(programs: &[Program]) -> String {
-    let mut b = String::new();
-    writeln!(b, "PID NAME STATUS UPTIME").unwrap();
-    b
+fn status(programs: &[Program]) -> Table {
+    let rows = [Row::new(vec!["PID", "NAME", "STATUS", "SINCE"])];
+    let mut table = Table::new(rows, &[]);
+    // TODO: add a row for each program
+    // https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
+    table
 }
 
 impl Drop for Tui {
