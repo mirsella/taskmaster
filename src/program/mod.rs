@@ -19,13 +19,13 @@ use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
 use std::{
     collections::HashMap,
-	env::current_dir,
-	error::Error,
-	fmt::format,
-	fs::{self, File, OpenOptions},
-	mem, path::{Path, PathBuf},
-	process::{self, Command, Stdio},
-	time::Duration
+    env::current_dir,
+    error::Error,
+    fs::{self, File, OpenOptions},
+    mem,
+    path::{Path, PathBuf},
+    process::{self, Command, Stdio},
+    time::Duration,
 };
 use tracing::{debug, info, instrument, trace};
 
@@ -203,6 +203,12 @@ impl Program {
             return Err("Some processes are still running".into());
         }
         info!(name = self.name, "starting process...");
+        debug!(
+            name = self.name,
+            "\nargs = {:?}\nenv = {:?}",
+            self.args.clone(),
+            self.env.clone()
+        );
         for _ in 0..self.processes {
             let child = self.create_child()?;
             self.childs.push(child);
@@ -211,12 +217,6 @@ impl Program {
             name = self.name,
             "all processes started ({})", self.processes
         );
-		debug!(
-			name = self.name,
-			"\nargs = {:?}\nenv = {:?}",
-			self.args.clone(),
-			self.env.clone()
-		);
         Ok(())
     }
 
@@ -266,20 +266,13 @@ impl Program {
             self.start()?;
         }
 
-        let finished_before = self
-            .childs
-            .iter()
-            .all(|c| matches!(c.status, Status::Finished(_, _)));
+        let finished_before = self.all_stopped();
         let mut childs = mem::take(&mut self.childs);
         for child in &mut childs {
             let _ = child.tick(self);
         }
         self.childs = childs;
-        let finished_after = self
-            .childs
-            .iter()
-            .all(|c| matches!(c.status, Status::Finished(_, _)));
-        if !finished_before && finished_after {
+        if !finished_before && self.all_stopped() {
             info!(
                 name = self.name,
                 "All ({}) processes finished", self.processes
@@ -287,6 +280,7 @@ impl Program {
         }
         Ok(())
     }
+    /// apply a new configuration to the program, and restart it if needed
     pub fn update(&mut self, new: Program) {
         if self == &new {
             trace!(
@@ -304,22 +298,12 @@ impl Program {
         self.childs = childs;
         self.restart();
     }
-    /// Applies a new config to the program, and restart if needed
-	pub fn status(&self) -> Row {
-		let name = self.name.clone();
-		let since = self.childs.iter().max_by_key(|x| x.last_update());
-		let running: usize = self.childs.iter()
-		.filter(|&c| {
-			matches!(c.status, Status::Running(_))
-		}).count();
-		let since_str = match since {
-			Some(c) => format!("{:?}", c.last_update().elapsed()),
-			None => "Unknown".to_string(),
-		};
-		let status_str = format!("{running}/{}", self.childs.len());
-
-		Row::new(vec![name, status_str, since_str])
-	}
+    /// if all the children are stopped or finished
+    pub fn all_stopped(&self) -> bool {
+        self.childs
+            .iter()
+            .all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
+    }
 }
 
 impl PartialEq for Program {

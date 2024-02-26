@@ -1,11 +1,13 @@
+pub mod command;
+
+pub use self::command::Command;
+use crate::program::{child::Status, Program};
 use crossterm::{
     cursor::{Hide, Show},
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-
-use crate::program::Program;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -15,12 +17,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table},
     Terminal,
 };
-use std::{io, panic, str::FromStr};
-use tracing::{trace, Level};
+use std::{io, panic};
+use tracing::trace;
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
 
-pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
+type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
 /// Representation of a terminal user interface.
 ///
 /// It is responsible for setting up the terminal,
@@ -217,14 +219,11 @@ impl Tui {
 
 fn status(programs: &[Program]) -> Table {
     let mut rows = vec![Row::new(vec!["NAME", "RUNNING", "SINCE"])];
-    // TODO: add a row for each program
-    // https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
-	for i in 0..programs.len() {
-		for row in programs[i].status() {
-			rows.push(row);
-		}
-	}
-	Table::new(rows, &[])
+    // TODO: https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
+    for i in 0..programs.len() {
+        rows.push(Row::from(&programs[i]));
+    }
+    Table::new(rows, &[])
 }
 
 impl Drop for Tui {
@@ -233,42 +232,21 @@ impl Drop for Tui {
     }
 }
 
-#[derive(Debug)]
-pub enum Command {
-    Quit,
-    Start(String),
-    Stop(String),
-    Restart(String),
-    Reload(String),
-    LogLevel(Level),
-}
-impl FromStr for Command {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let lower = s.to_lowercase();
-        let mut s = lower.split_whitespace();
-        let cmd = s.next().ok_or(())?;
-        let arg = s.next().unwrap_or_default().to_string();
-        if s.next().is_some() {
-            return Err(());
-        }
-        if "quit".starts_with(cmd) {
-            return Ok(Self::Quit);
-        } else if "start".starts_with(cmd) {
-            return Ok(Self::Start(arg));
-        } else if "stop".starts_with(cmd) {
-            return Ok(Self::Stop(arg));
-        } else if "restart".starts_with(cmd) {
-            return Ok(Self::Restart(arg));
-        } else if "reload".starts_with(cmd) {
-            return Ok(Self::Reload(arg));
-        } else if "loglevel".starts_with(cmd) && !arg.is_empty() {
-            return Ok(Self::LogLevel(Level::from_str(&arg).map_err(|_| ())?));
-        }
-        Err(())
+impl From<&Program> for Row<'_> {
+    fn from(program: &Program) -> Self {
+        let name = program.name.clone();
+        let since = program.childs.iter().max_by_key(|x| x.last_update());
+        let running: usize = program
+            .childs
+            .iter()
+            .filter(|&c| matches!(c.status, Status::Running(_)))
+            .count();
+        let since_str = match since {
+            Some(c) => format!("{:?}", c.last_update().elapsed()),
+            None => "Unknown".to_string(),
+        };
+        let status_str = format!("{running}/{}", program.childs.len());
+
+        Row::new(vec![name, status_str, since_str])
     }
-}
-impl Command {
-    pub const HELP: &'static str =
-        "quit (2x to force) | start <name?> | stop <name?> | restart <name?> | reload <path?> | loglevel <level>";
 }
