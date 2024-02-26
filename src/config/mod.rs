@@ -149,7 +149,6 @@ mod tests {
         let c = Config::load(CONFIG).unwrap();
         assert!(!c.program[0].name.is_empty());
     }
-
     #[test]
     #[should_panic]
     fn invalid_config() {
@@ -163,5 +162,23 @@ mod tests {
             .contains("missing field `command`")
             .then_some(())
             .unwrap();
+    }
+    #[test]
+    fn different_configs() {
+        let base = Config::load("config/default.toml").unwrap();
+        let diff = Config::load("config/default_diff.toml").unwrap();
+
+        for i in 0..base.program.len() {
+            assert_ne!(base.program[i], diff.program[i])
+        }
+    }
+    #[test]
+    fn equal_configs() {
+        let base = Config::load("config/default.toml").unwrap();
+        let link = Config::load("config/default_link.toml").unwrap();
+
+        for i in 0..base.program.len() {
+            assert_eq!(base.program[i], link.program[i])
+        }
     }
 }

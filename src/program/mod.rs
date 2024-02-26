@@ -14,7 +14,6 @@ pub mod child;
 
 use crate::config::Signal;
 use child::{Child, Status};
-use ratatui::widgets::Row;
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
 use std::{
@@ -328,7 +327,6 @@ impl PartialEq for Program {
 #[cfg(test)]
 mod tests {
     use super::is_our_fd;
-    use crate::config::Config;
     use std::process::id;
 
     #[test]
@@ -381,26 +379,5 @@ mod tests {
     #[test]
     fn open_basic_config() {
         assert!(!is_our_fd("config/default.toml").unwrap());
-    }
-
-    #[test]
-    fn equal_configs() {
-        let base = Config::load("config/default.toml").unwrap();
-        let link = Config::load("config/default_link.toml").unwrap();
-
-        for i in 0..base.program.len() {
-            assert_eq!(base.program[i], link.program[i])
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn different_configs() {
-        let base = Config::load("config/default.toml").unwrap();
-        let diff = Config::load("config/default_diff.toml").unwrap();
-
-        for i in 0..base.program.len() {
-            assert_eq!(base.program[i], diff.program[i])
-        }
     }
 }
