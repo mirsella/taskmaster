@@ -37,3 +37,20 @@ pub fn init_logger(
         .init();
     Ok(filter_handle)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs::read;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_logger() {
+        let dir = tempdir().expect("creating tmp dir");
+        let mut file = dir.path().to_path_buf();
+        file.push("test.log");
+        super::init_logger(file.to_str().unwrap()).unwrap();
+        log::info!("test");
+        assert!(
+        read(file).unwrap().ends_with("\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mtaskmaster::logger::tests\u{1b}[0m\u{1b}[2m:\u{1b}[0m test    \n".as_bytes()));
+    }
+}
