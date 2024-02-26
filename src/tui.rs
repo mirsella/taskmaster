@@ -4,6 +4,8 @@ use crossterm::{
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+
+use crate::program::Program;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -13,14 +15,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Terminal,
 };
-use std::{io, panic, str::FromStr};
+use std::{fmt::Write, io, panic, str::FromStr};
 use tracing::{trace, Level};
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
 
-use crate::program::Program;
 pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
-
 /// Representation of a terminal user interface.
 ///
 /// It is responsible for setting up the terminal,
@@ -107,11 +107,7 @@ impl Tui {
                 layout[1],
             );
 
-            // TODO: better status representation
-            let status = programs[0]
-                .childs
-                .iter()
-                .fold(String::new(), |acc, c| acc + &format!("{:?}\n", c.status));
+            let status = status(programs);
             frame.render_widget(
                 Paragraph::new(status).block(
                     Block::default()
@@ -172,6 +168,7 @@ impl Tui {
         Ok(())
     }
 
+    /// scroll down the history, towards more recents commands
     pub fn history_down(&mut self) {
         if self.history_index == 0 {
             return;
@@ -186,6 +183,7 @@ impl Tui {
         }
     }
 
+    /// scroll up the history, towards older commands
     pub fn history_up(&mut self) {
         if self.history_index == self.history.len() {
             return;
@@ -196,10 +194,13 @@ impl Tui {
         }
     }
 
+    /// pass the event to the Input handler
     pub fn handle_other_event(&mut self, key: &crossterm::event::Event) {
         self.history_index = 0;
         self.input.handle_event(key);
     }
+
+    /// check for a valid command and reset the input
     pub fn handle_enter(&mut self) -> Option<Command> {
         let input = self.input.value().to_string();
         self.history_index = 0;
@@ -213,6 +214,13 @@ impl Tui {
         }
     }
 }
+
+fn status(programs: &[Program]) -> String {
+    let mut b = String::new();
+    writeln!(b, "PID NAME STATUS UPTIME").unwrap();
+    b
+}
+
 impl Drop for Tui {
     fn drop(&mut self) {
         Tui::reset_term().expect("failed to reset the terminal");

@@ -83,7 +83,7 @@ impl Child {
                     self.process = program.create_child()?.process;
                 }
             }
-            Status::Terminating(since) if program.graceful_timeout > since.elapsed() => {
+            Status::Terminating(since) if program.graceful_timeout < since.elapsed() => {
                 warn!(
                     pid = self.process.id(),
                     name = program.name,
@@ -91,7 +91,7 @@ impl Child {
                 );
                 self.kill()
             }
-            Status::Starting(since) if program.min_runtime > since.elapsed() => {
+            Status::Starting(since) if program.min_runtime < since.elapsed() => {
                 trace!(
                     pid = self.process.id(),
                     name = program.name,
