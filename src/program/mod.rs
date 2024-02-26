@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/26 11:27:08 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 13:35:36 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -94,6 +94,8 @@ pub struct Program {
     pub childs: Vec<Child>,
     #[serde(skip)]
     pub force_restart: bool,
+	#[serde(skip)]
+    pub update_asked: bool,
 }
 fn default_processes() -> u8 {
     1
@@ -156,7 +158,7 @@ impl Program {
         let setup_io = |path: Option<&Path>, file_options: &mut OpenOptions| {
             path.map_or(Ok(Stdio::null()), |path| {
 				match follow_link(path, pid) {
-					Err(e) => return Err(format!("opening file `{path:?}`: {}", e.to_string())),
+					Err(e) => return Err(format!("opening file `{path:?}`: {e}")),
 					Ok(_) => {},
 				};
                 file_options
@@ -272,9 +274,26 @@ impl Program {
         self.force_restart = true;
         self.stop();
     }
-    /// TODO: apply a new config to the program, and restart if needed
-    pub fn update(&mut self, _new: Program) {
-        todo!()
+    /// Applies a new config to the program, and restart if needed
+    pub fn update(&mut self, new: Program) {
+		if self.corresponds_to(&new) {
+			info!("Not updating {}: configuration didn't change", self.name);
+			return;
+		}
+		if self.update_asked {
+			if self.childs
+				.iter()
+				.all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
+			{
+				self.childs.clear();
+			}
+			self.assign_new(new);
+			self.update_asked = false;
+			self.force_restart = false;
+		} else {
+			self.restart();
+			self.update_asked = true;
+		}
     }
     /// this need to be called regularly, to check the status of the program and its children.
     pub fn tick(&mut self) -> Result<(), Box<dyn Error>> {
@@ -310,13 +329,62 @@ impl Program {
         }
         Ok(())
     }
+
+	/// To check if two Programs have the same configuration
+	pub fn corresponds_to(&self, other: &Program) -> bool {
+		if self.name != other.name ||
+			self.cmd != other.cmd ||
+			self.processes != other.processes ||
+			self.min_runtime != other.min_runtime ||
+			self.valid_exit_codes != other.valid_exit_codes ||
+			self.max_restarts != other.max_restarts ||
+			self.stop_signal != other.stop_signal ||
+			self.graceful_timeout != other.graceful_timeout ||
+			self.stdin != other.stdin ||
+			self.stdout != other.stdout ||
+			self.stderr != other.stderr ||
+			self.stdout_truncate != other.stdout_truncate ||
+			self.stderr_truncate != other.stderr_truncate ||
+			self.args != other.args ||
+			self.env != other.env ||
+			self.cwd != other.cwd ||
+			self.umask != other.umask ||
+			self.user != other.user ||
+			self.start_policy != other.start_policy {
+			return false;
+		}
+		true
+	}
+
+	pub fn assign_new(&mut self, other: Program) {
+		self.name = other.name;
+		self.cmd = other.cmd;
+		self.processes = other.processes;
+		self.min_runtime = other.min_runtime;
+		self.valid_exit_codes = other.valid_exit_codes;
+		self.max_restarts = other.max_restarts;
+		self.stop_signal = other.stop_signal;
+		self.graceful_timeout = other.graceful_timeout;
+		self.stdin = other.stdin;
+		self.stdout = other.stdout;
+		self.stderr = other.stderr;
+		self.stdout_truncate = other.stdout_truncate;
+		self.stderr_truncate = other.stderr_truncate;
+		self.args = other.args;
+		self.env = other.env;
+		self.cwd = other.cwd;
+		self.umask = other.umask;
+		self.user = other.user;
+		self.start_policy = other.start_policy;
+	}
 }
 
 #[cfg(test)]
 mod program_tests {
-    use std::{os::unix::process, path::Path, process::id};
+    use std::{path::Path, process::id};
 
     use super::follow_link;
+	use crate::config::Config;
 
 
     #[test]
@@ -369,5 +437,26 @@ mod program_tests {
 	#[test]
 	fn open_basic_config() {
 		follow_link(Path::new("config/default.toml"), id()).unwrap();
+	}
+
+	#[test]
+	fn equal_configs() {
+		let base = Config::load("config/default.toml").unwrap();
+		let link = Config::load("config/default_link.toml").unwrap();
+
+		for i in 0..base.program.len() {
+			assert!(base.program[i].corresponds_to(&link.program[i]))
+		}
+	}
+
+	#[test]
+	#[should_panic]
+	fn different_configs() {
+		let base = Config::load("config/default.toml").unwrap();
+		let diff = Config::load("config/default_diff.toml").unwrap();
+
+		for i in 0..base.program.len() {
+			assert!(base.program[i].corresponds_to(&diff.program[i]))
+		}
 	}
 }

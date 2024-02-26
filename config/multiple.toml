@@ -1,0 +1,19 @@
+loglevel = "trace"
+
+[[program]]
+name = "short"
+command = "date"
+processes = 1
+start_policy = "auto"
+valid_exit_codes = [0]
+stdout = "./test.log"
+stdout_truncate = false
+
+[[program]]
+name = "long"
+command = "sleep"
+args = ["15"]
+
+[[program]]
+name = "never ending"
+command = "yes"
