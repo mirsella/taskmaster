@@ -216,11 +216,13 @@ impl Tui {
 }
 
 fn status(programs: &[Program]) -> Table {
-    let rows = [Row::new(vec!["PID", "NAME", "STATUS", "SINCE"])];
-    let mut table = Table::new(rows, &[]);
+    let mut rows = vec![Row::new(vec!["NAME", "RUNNING", "SINCE"])];
     // TODO: add a row for each program
     // https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
-    table
+	for i in 0..programs.len() {
+		rows.push(programs[i].status());
+	}
+	Table::new(rows, &[])
 }
 
 impl Drop for Tui {

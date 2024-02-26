@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/23 18:57:26 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 14:48:47 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -123,4 +123,14 @@ impl Child {
             self.status = Status::Terminating(Instant::now());
         }
     }
+
+	pub fn last_update(&self) -> Instant {
+		match self.status {
+			Status::Finished(t, _) => t,
+			Status::Running(t) => t,
+			Status::Stopped(t) => t,
+			Status::Terminating(t) => t,
+			Status::Starting(t) => t,
+		}
+	}
 }

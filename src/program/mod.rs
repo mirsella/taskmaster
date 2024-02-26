@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/26 13:35:36 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 15:03:18 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,17 +14,18 @@ pub mod child;
 
 use crate::config::Signal;
 use child::{Child, Status};
+use ratatui::widgets::Row;
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
 use std::{
     collections::HashMap,
-    env::current_dir,
-    error::Error,
-    fs::{self, File, OpenOptions},
-    mem,
-    path::{Path, PathBuf},
-    process::{self, Command, Stdio},
-    time::Duration,
+	env::current_dir,
+	error::Error,
+	fmt::format,
+	fs::{self, File, OpenOptions},
+	mem, path::{Path, PathBuf},
+	process::{self, Command, Stdio},
+	time::Duration
 };
 use tracing::{debug, info, instrument, trace};
 
@@ -238,6 +239,12 @@ impl Program {
             name = self.name,
             "all processes started ({})", self.processes
         );
+		debug!(
+			name = self.name,
+			"\nargs = {:?}\nenv = {:?}",
+			self.args.clone(),
+			self.env.clone()
+		);
         Ok(())
     }
 
@@ -285,12 +292,20 @@ impl Program {
 				.iter()
 				.all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
 			{
+				debug!("No childs left, clearing");
 				self.childs.clear();
 			}
-			self.assign_new(new);
-			self.update_asked = false;
-			self.force_restart = false;
+			if self.childs.len() == 0 {
+				debug!("Re-assignation");
+				self.assign_new(new);
+				self.update_asked = false;
+				self.force_restart = false;
+				self.start().unwrap(); // TO CHANGE
+			} else {
+				debug!("Not every child was stopped")
+			}
 		} else {
+			debug!("Restarting before reset");
 			self.restart();
 			self.update_asked = true;
 		}
@@ -329,6 +344,22 @@ impl Program {
         }
         Ok(())
     }
+
+	pub fn status(&self) -> Row {
+		let name = self.name.clone();
+		let since = self.childs.iter().max_by_key(|x| x.last_update());
+		let running: usize = self.childs.iter()
+		.filter(|&c| {
+			matches!(c.status, Status::Running(_))
+		}).count();
+		let since_str = match since {
+			Some(c) => format!("{:?}", c.last_update().elapsed()),
+			None => "Unknown".to_string(),
+		};
+		let status_str = format!("{running}/{}", self.childs.len());
+		
+		Row::new(vec![name, status_str, since_str])
+	}
 
 	/// To check if two Programs have the same configuration
 	pub fn corresponds_to(&self, other: &Program) -> bool {
