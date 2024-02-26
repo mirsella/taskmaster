@@ -113,7 +113,7 @@ impl Child {
             self.status = Status::Stopped(Instant::now());
         }
     }
-    /// Kill the child. for graceful shutdown, check stop().
+    /// gracefully stop the child
     #[instrument(skip_all)]
     pub fn stop(&mut self, signal: i32) {
         if let Status::Running(_) | Status::Starting(_) = self.status {
