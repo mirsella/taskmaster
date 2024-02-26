@@ -172,6 +172,15 @@ impl Program {
 
     #[instrument(skip_all)]
     pub fn start(&mut self) -> Result<(), Box<dyn Error>> {
+        if self
+            .childs
+            .iter()
+            .all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
+        {
+            self.childs.clear();
+        } else {
+            return Err("Some processes are still running".into());
+        }
         info!(name = self.name, "starting process...");
         for _ in 0..self.processes {
             let child = self.create_child()?;
