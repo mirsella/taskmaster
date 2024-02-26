@@ -15,7 +15,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table},
     Terminal,
 };
-use std::{fmt::Write, io, panic, str::FromStr};
+use std::{io, panic, str::FromStr};
 use tracing::{trace, Level};
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
@@ -220,7 +220,9 @@ fn status(programs: &[Program]) -> Table {
     // TODO: add a row for each program
     // https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
 	for i in 0..programs.len() {
-		rows.push(programs[i].status());
+		for row in programs[i].status() {
+			rows.push(row);
+		}
 	}
 	Table::new(rows, &[])
 }
