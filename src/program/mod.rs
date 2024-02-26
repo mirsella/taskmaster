@@ -94,8 +94,6 @@ pub struct Program {
     pub childs: Vec<Child>,
     #[serde(skip)]
     pub force_restart: bool,
-    // #[serde(skip)]
-    // pub update_asked: bool,
 }
 fn default_processes() -> u8 {
     1
@@ -127,16 +125,17 @@ impl Program {
     #[instrument(skip_all)]
     fn create_child(&mut self) -> Result<Child, Box<dyn Error>> {
         let setup_io = |path: Option<&Path>, file_options: &mut OpenOptions| {
-            path.map_or(Ok(Stdio::null()), |path| {
+            path.map_or(Ok::<Stdio, Box<dyn Error>>(Stdio::null()), |path| {
+                let f = file_options
+                    .open(path)
+                    .map_err(|e| format!("opening file `{path:?}`: {e}"))
+                    .map(Stdio::from)?;
                 if is_our_fd(path)
                     .map_err(|e| format!("checking if the path is our own stdio fd: {e}"))?
                 {
                     return Err("File points to our own stdio file descriptor".into());
                 };
-                file_options
-                    .open(path)
-                    .map_err(|e| format!("opening file `{path:?}`: {e}"))
-                    .map(Stdio::from)
+                Ok(f)
             })
         };
         trace!(name = self.name, path = ?self.stdin, "Setting up stdin");
