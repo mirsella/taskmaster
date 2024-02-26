@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/23 18:43:19 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 11:27:08 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,10 +20,10 @@ use std::{
     collections::HashMap,
     env::current_dir,
     error::Error,
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     mem,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{self, Command, Stdio},
     time::Duration,
 };
 use tracing::{debug, info, instrument, trace};
@@ -108,11 +108,57 @@ pub fn generate_name() -> String {
     names::Generator::default().next().unwrap()
 }
 
+fn is_our_fd(metadata: &fs::Metadata, target_path: &Path, pid: u32) -> bool {
+	if target_path.starts_with("/proc/self/fd/") || 
+		target_path.starts_with(format!("/proc/{pid}/fd/").as_str()) {
+		return true;
+	}
+    if metadata.file_type().is_symlink() {
+        if let Ok(link_dest) = fs::read_link(target_path) {
+            if let Some(link_dest_str) = link_dest.to_str() {
+                if link_dest_str.starts_with("/proc/self/fd/") || 
+				link_dest_str.starts_with(format!("/proc/{pid}/fd/").as_str()) {
+                        return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn follow_link(path: &Path, pid: u32) -> Result<(), Box<dyn Error>> {
+    let mut current_path = PathBuf::from(&path);
+
+    loop {
+        let metadata = fs::symlink_metadata(&current_path)?;
+
+        if is_our_fd(&metadata, &current_path, pid) {
+            return Err(format!("{} is a link to one of taskmaster's fd", path.display()).into());
+        }
+
+        if metadata.file_type().is_symlink() {
+            let target_path = fs::read_link(&current_path)?;
+            current_path = if target_path.is_relative() {
+                current_path.parent().unwrap().join(&target_path)
+            } else {
+                target_path
+            };
+        } else {
+            return Ok(());
+        }
+    }
+}
+
 impl Program {
     #[instrument(skip_all)]
     fn create_child(&mut self) -> Result<Child, Box<dyn Error>> {
+		let pid = process::id();
         let setup_io = |path: Option<&Path>, file_options: &mut OpenOptions| {
             path.map_or(Ok(Stdio::null()), |path| {
+				match follow_link(path, pid) {
+					Err(e) => return Err(format!("opening file `{path:?}`: {}", e.to_string())),
+					Ok(_) => {},
+				};
                 file_options
                     .open(path)
                     .map_err(|e| format!("opening file `{path:?}`: {e}"))
@@ -264,4 +310,64 @@ impl Program {
         }
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod program_tests {
+    use std::{os::unix::process, path::Path, process::id};
+
+    use super::follow_link;
+
+
+    #[test]
+	#[should_panic]
+	fn open_stdin() {
+		follow_link(Path::new("/dev/stdin"), id()).unwrap();
+	}
+
+	#[test]
+	#[should_panic]
+	fn open_stdout() {
+		follow_link(Path::new("/dev/stdout"), id()).unwrap();
+	}
+
+	#[test]
+	#[should_panic]
+	fn open_stderr() {
+		follow_link(Path::new("/dev/stderr"), id()).unwrap();
+	}
+
+	#[test]
+	#[should_panic]
+	fn open_self_zero() {
+		follow_link(Path::new("/proc/self/fd/0"), id()).unwrap();
+	}
+
+	#[test]
+	#[should_panic]
+	fn open_self_one() {
+		follow_link(Path::new("/proc/self/fd/1"), id()).unwrap();
+	}
+
+	#[test]
+	#[should_panic]
+	fn open_self_pid_zero() {
+		follow_link(Path::new(format!("/proc/{}/fd/0", id()).as_str()), id()).unwrap();
+	}
+
+	#[test]
+	#[should_panic]
+	fn open_self_pid_one() {
+		follow_link(Path::new(format!("/proc/{}/fd/1", id()).as_str()), id()).unwrap();
+	}
+
+	#[test]
+	fn open_bash() {
+		follow_link(Path::new("/bin/bash"), id()).unwrap();
+	}
+
+	#[test]
+	fn open_basic_config() {
+		follow_link(Path::new("config/default.toml"), id()).unwrap();
+	}
 }
