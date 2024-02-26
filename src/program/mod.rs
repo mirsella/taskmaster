@@ -203,6 +203,12 @@ impl Program {
             return Err("Some processes are still running".into());
         }
         info!(name = self.name, "starting process...");
+        debug!(
+            name = self.name,
+            "\nargs = {:?}\nenv = {:?}",
+            self.args.clone(),
+            self.env.clone()
+        );
         for _ in 0..self.processes {
             let child = self.create_child()?;
             self.childs.push(child);
@@ -210,12 +216,6 @@ impl Program {
         info!(
             name = self.name,
             "all processes started ({})", self.processes
-        );
-        debug!(
-            name = self.name,
-            "\nargs = {:?}\nenv = {:?}",
-            self.args.clone(),
-            self.env.clone()
         );
         Ok(())
     }
@@ -287,6 +287,7 @@ impl Program {
         }
         Ok(())
     }
+    /// apply a new configuration to the program, and restart it if needed
     pub fn update(&mut self, new: Program) {
         if self == &new {
             trace!(
@@ -304,7 +305,7 @@ impl Program {
         self.childs = childs;
         self.restart();
     }
-    /// Applies a new config to the program, and restart if needed
+    /// Used to display the status of the program in the TUI
     pub fn status(&self) -> Row {
         let name = self.name.clone();
         let since = self.childs.iter().max_by_key(|x| x.last_update());
