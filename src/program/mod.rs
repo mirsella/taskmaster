@@ -139,14 +139,14 @@ impl Program {
                     .map(Stdio::from)
             })
         };
-        trace!(name = self.name, config = ?self.stdin, "Setting up stdin");
+        trace!(name = self.name, path = ?self.stdin, "Setting up stdin");
         let stdin = setup_io(
             self.stdin.as_deref(),
             File::options().read(true).create(false),
         )?;
         trace!(
             name = self.name,
-            config = ?self.stdout.as_ref().unwrap_or(&"null".into()),
+            path = ?self.stdout,
             "Setting up stdout"
         );
         let stdout = setup_io(
@@ -156,7 +156,7 @@ impl Program {
                 .truncate(self.stdout_truncate)
                 .create(true),
         )?;
-        trace!(name = self.name, config = ?self.stderr, "Setting up stderr");
+        trace!(name = self.name, path = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
@@ -324,7 +324,7 @@ impl PartialEq for Program {
 }
 
 #[cfg(test)]
-mod program_tests {
+mod tests {
     use super::is_our_fd;
     use crate::config::Config;
     use std::process::id;

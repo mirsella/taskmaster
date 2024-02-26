@@ -95,7 +95,7 @@ impl Config {
 }
 
 #[cfg(test)]
-mod parsing_tests {
+mod tests {
     use super::{Config, Signal};
     use crate::program::{RestartPolicy, StartPolicy};
     use std::path::Path;
