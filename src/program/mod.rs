@@ -6,11 +6,12 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/26 15:08:37 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 17:24:58 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 pub mod child;
+pub mod terminal_status;
 
 use crate::config::Signal;
 use child::{Child, Status};

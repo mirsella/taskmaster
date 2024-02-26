@@ -1,7 +1,7 @@
 pub mod command;
 
 pub use self::command::Command;
-use crate::program::{child::Status, Program};
+use crate::program::{Program};
 use crossterm::{
     cursor::{Hide, Show},
     event::{DisableMouseCapture, EnableMouseCapture},
@@ -218,10 +218,17 @@ impl Tui {
 }
 
 fn status(programs: &[Program]) -> Table {
-    let mut rows = vec![Row::new(vec!["NAME", "RUNNING", "SINCE"])];
+    let mut rows = vec![Row::new(vec!["Name", "Status", "Processes", "Last update"])];
     // TODO: https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
+	rows.push(Row::new(vec!["╺━━━━━╸"]));
     for i in 0..programs.len() {
-        rows.push(Row::from(&programs[i]));
+		let status_rows = programs[i].status();
+		for row in status_rows.clone() {
+			rows.push(row);
+		}
+		if status_rows.len() > 0 {
+			rows.push(Row::new(vec!["╺━━━━━╸"]));
+		}
     }
     Table::new(rows, &[])
 }
@@ -229,24 +236,5 @@ fn status(programs: &[Program]) -> Table {
 impl Drop for Tui {
     fn drop(&mut self) {
         Tui::reset_term().expect("failed to reset the terminal");
-    }
-}
-
-impl From<&Program> for Row<'_> {
-    fn from(program: &Program) -> Self {
-        let name = program.name.clone();
-        let since = program.childs.iter().max_by_key(|x| x.last_update());
-        let running: usize = program
-            .childs
-            .iter()
-            .filter(|&c| matches!(c.status, Status::Running(_)))
-            .count();
-        let since_str = match since {
-            Some(c) => format!("{:?}", c.last_update().elapsed()),
-            None => "Unknown".to_string(),
-        };
-        let status_str = format!("{running}/{}", program.childs.len());
-
-        Row::new(vec![name, status_str, since_str])
     }
 }

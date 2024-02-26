@@ -1,0 +1,13 @@
+loglevel = "trace"
+
+[[program]]
+name = "exit"
+command = "python3"
+processes = 30
+args = ["tests/exit.py"]
+
+[[program]]
+name = "exit_and_signals"
+command = "python3"
+processes = 30
+args = ["tests/exit_signal.py"]
