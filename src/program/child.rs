@@ -17,7 +17,7 @@ use std::{
 };
 use tracing::{debug, error, instrument, trace, warn};
 
-use super::Program;
+use super::{Program, RestartPolicy};
 
 #[derive(Debug)]
 pub enum Status {
@@ -67,7 +67,9 @@ impl Child {
             _ => (),
         };
         match self.status {
-            Status::Finished(_, code) => {
+            Status::Finished(_, code)
+                if program.restart_policy == RestartPolicy::UnexpectedExit =>
+            {
                 if !program
                     .valid_exit_codes
                     .contains(&code.code().unwrap_or_default())
@@ -82,6 +84,15 @@ impl Child {
                     self.restarts += 1;
                     self.process = program.create_child()?.process;
                 }
+            }
+            Status::Finished(_, code) if program.restart_policy == RestartPolicy::Always => {
+                debug!(
+                    name = program.name,
+                    exit_code = code.code(),
+                    "restarting a finished child"
+                );
+                self.restarts += 1;
+                self.process = program.create_child()?.process;
             }
             Status::Terminating(since) if program.graceful_timeout < since.elapsed() => {
                 warn!(

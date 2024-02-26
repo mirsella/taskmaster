@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/26 15:03:18 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 15:05:35 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -95,8 +95,8 @@ pub struct Program {
     pub childs: Vec<Child>,
     #[serde(skip)]
     pub force_restart: bool,
-	#[serde(skip)]
-    pub update_asked: bool,
+    // #[serde(skip)]
+    // pub update_asked: bool,
 }
 fn default_processes() -> u8 {
     1
@@ -111,71 +111,43 @@ pub fn generate_name() -> String {
     names::Generator::default().next().unwrap()
 }
 
-fn is_our_fd(metadata: &fs::Metadata, target_path: &Path, pid: u32) -> bool {
-	if target_path.starts_with("/proc/self/fd/") || 
-		target_path.starts_with(format!("/proc/{pid}/fd/").as_str()) {
-		return true;
-	}
-    if metadata.file_type().is_symlink() {
-        if let Ok(link_dest) = fs::read_link(target_path) {
-            if let Some(link_dest_str) = link_dest.to_str() {
-                if link_dest_str.starts_with("/proc/self/fd/") || 
-				link_dest_str.starts_with(format!("/proc/{pid}/fd/").as_str()) {
-                        return true;
-                }
-            }
-        }
+fn is_our_fd(path: impl AsRef<Path>) -> Result<bool, Box<dyn Error>> {
+    let resolved_path = fs::canonicalize(path)?;
+    let resolved_path = resolved_path
+        .to_str()
+        .ok_or("the path is invalid unicode")?;
+    let proc_paths = ["/proc/self/fd", &format!("/proc/{}/fd", process::id())];
+
+    if proc_paths.iter().any(|p| resolved_path.contains(p)) {
+        return Ok(true);
     }
-    false
-}
-
-fn follow_link(path: &Path, pid: u32) -> Result<(), Box<dyn Error>> {
-    let mut current_path = PathBuf::from(&path);
-
-    loop {
-        let metadata = fs::symlink_metadata(&current_path)?;
-
-        if is_our_fd(&metadata, &current_path, pid) {
-            return Err(format!("{} is a link to one of taskmaster's fd", path.display()).into());
-        }
-
-        if metadata.file_type().is_symlink() {
-            let target_path = fs::read_link(&current_path)?;
-            current_path = if target_path.is_relative() {
-                current_path.parent().unwrap().join(&target_path)
-            } else {
-                target_path
-            };
-        } else {
-            return Ok(());
-        }
-    }
+    Ok(false)
 }
 
 impl Program {
     #[instrument(skip_all)]
     fn create_child(&mut self) -> Result<Child, Box<dyn Error>> {
-		let pid = process::id();
         let setup_io = |path: Option<&Path>, file_options: &mut OpenOptions| {
             path.map_or(Ok(Stdio::null()), |path| {
-				match follow_link(path, pid) {
-					Err(e) => return Err(format!("opening file `{path:?}`: {e}")),
-					Ok(_) => {},
-				};
+                if is_our_fd(path)
+                    .map_err(|e| format!("checking if the path is our own stdio fd: {e}"))?
+                {
+                    return Err("File points to our own stdio file descriptor".into());
+                };
                 file_options
                     .open(path)
                     .map_err(|e| format!("opening file `{path:?}`: {e}"))
                     .map(Stdio::from)
             })
         };
-        trace!(name = self.name, config = ?self.stdin, "Setting up stdin");
+        trace!(name = self.name, path = ?self.stdin, "Setting up stdin");
         let stdin = setup_io(
             self.stdin.as_deref(),
             File::options().read(true).create(false),
         )?;
         trace!(
             name = self.name,
-            config = ?self.stdout.as_ref().unwrap_or(&"null".into()),
+            path = ?self.stdout,
             "Setting up stdout"
         );
         let stdout = setup_io(
@@ -185,7 +157,7 @@ impl Program {
                 .truncate(self.stdout_truncate)
                 .create(true),
         )?;
-        trace!(name = self.name, config = ?self.stderr, "Setting up stderr");
+        trace!(name = self.name, path = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
@@ -344,150 +316,125 @@ impl Program {
         }
         Ok(())
     }
+    pub fn update(&mut self, new: Program) {
+        if self == &new {
+            trace!(
+                name = self.name,
+                "Not updating: configuration didn't change"
+            );
+            return;
+        }
+        debug!(
+            name = self.name,
+            "Updating configuration, restartings processes"
+        );
+        let childs = mem::take(&mut self.childs);
+        let _ = mem::replace(self, new);
+        self.childs = childs;
+        self.restart();
+    }
+}
 
-	pub fn status(&self) -> Row {
-		let name = self.name.clone();
-		let since = self.childs.iter().max_by_key(|x| x.last_update());
-		let running: usize = self.childs.iter()
-		.filter(|&c| {
-			matches!(c.status, Status::Running(_))
-		}).count();
-		let since_str = match since {
-			Some(c) => format!("{:?}", c.last_update().elapsed()),
-			None => "Unknown".to_string(),
-		};
-		let status_str = format!("{running}/{}", self.childs.len());
-		
-		Row::new(vec![name, status_str, since_str])
-	}
-
-	/// To check if two Programs have the same configuration
-	pub fn corresponds_to(&self, other: &Program) -> bool {
-		if self.name != other.name ||
-			self.cmd != other.cmd ||
-			self.processes != other.processes ||
-			self.min_runtime != other.min_runtime ||
-			self.valid_exit_codes != other.valid_exit_codes ||
-			self.max_restarts != other.max_restarts ||
-			self.stop_signal != other.stop_signal ||
-			self.graceful_timeout != other.graceful_timeout ||
-			self.stdin != other.stdin ||
-			self.stdout != other.stdout ||
-			self.stderr != other.stderr ||
-			self.stdout_truncate != other.stdout_truncate ||
-			self.stderr_truncate != other.stderr_truncate ||
-			self.args != other.args ||
-			self.env != other.env ||
-			self.cwd != other.cwd ||
-			self.umask != other.umask ||
-			self.user != other.user ||
-			self.start_policy != other.start_policy {
-			return false;
-		}
-		true
-	}
-
-	pub fn assign_new(&mut self, other: Program) {
-		self.name = other.name;
-		self.cmd = other.cmd;
-		self.processes = other.processes;
-		self.min_runtime = other.min_runtime;
-		self.valid_exit_codes = other.valid_exit_codes;
-		self.max_restarts = other.max_restarts;
-		self.stop_signal = other.stop_signal;
-		self.graceful_timeout = other.graceful_timeout;
-		self.stdin = other.stdin;
-		self.stdout = other.stdout;
-		self.stderr = other.stderr;
-		self.stdout_truncate = other.stdout_truncate;
-		self.stderr_truncate = other.stderr_truncate;
-		self.args = other.args;
-		self.env = other.env;
-		self.cwd = other.cwd;
-		self.umask = other.umask;
-		self.user = other.user;
-		self.start_policy = other.start_policy;
-	}
+impl PartialEq for Program {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.cmd == other.cmd
+            && self.processes == other.processes
+            && self.min_runtime == other.min_runtime
+            && self.valid_exit_codes == other.valid_exit_codes
+            && self.max_restarts == other.max_restarts
+            && self.stop_signal == other.stop_signal
+            && self.graceful_timeout == other.graceful_timeout
+            && self.stdin == other.stdin
+            && self.stdout == other.stdout
+            && self.stderr == other.stderr
+            && self.stdout_truncate == other.stdout_truncate
+            && self.stderr_truncate == other.stderr_truncate
+            && self.args == other.args
+            && self.env == other.env
+            && self.cwd == other.cwd
+            && self.umask == other.umask
+            && self.user == other.user
+            && self.start_policy == other.start_policy
+    }
 }
 
 #[cfg(test)]
-mod program_tests {
-    use std::{path::Path, process::id};
-
-    use super::follow_link;
-	use crate::config::Config;
-
+mod tests {
+    use super::is_our_fd;
+    use crate::config::Config;
+    use std::process::id;
 
     #[test]
-	#[should_panic]
-	fn open_stdin() {
-		follow_link(Path::new("/dev/stdin"), id()).unwrap();
-	}
+    #[should_panic]
+    fn open_stdin() {
+        assert!(is_our_fd("/dev/stdin").unwrap());
+    }
 
-	#[test]
-	#[should_panic]
-	fn open_stdout() {
-		follow_link(Path::new("/dev/stdout"), id()).unwrap();
-	}
+    #[test]
+    #[should_panic]
+    fn open_stdout() {
+        assert!(is_our_fd("/dev/stdout").unwrap());
+    }
 
-	#[test]
-	#[should_panic]
-	fn open_stderr() {
-		follow_link(Path::new("/dev/stderr"), id()).unwrap();
-	}
+    #[test]
+    #[should_panic]
+    fn open_stderr() {
+        assert!(is_our_fd("/dev/stderr").unwrap());
+    }
 
-	#[test]
-	#[should_panic]
-	fn open_self_zero() {
-		follow_link(Path::new("/proc/self/fd/0"), id()).unwrap();
-	}
+    #[test]
+    #[should_panic]
+    fn open_self_zero() {
+        assert!(is_our_fd("/proc/self/fd/0").unwrap());
+    }
 
-	#[test]
-	#[should_panic]
-	fn open_self_one() {
-		follow_link(Path::new("/proc/self/fd/1"), id()).unwrap();
-	}
+    #[test]
+    #[should_panic]
+    fn open_self_one() {
+        assert!(is_our_fd("/proc/self/fd/1").unwrap());
+    }
 
-	#[test]
-	#[should_panic]
-	fn open_self_pid_zero() {
-		follow_link(Path::new(format!("/proc/{}/fd/0", id()).as_str()), id()).unwrap();
-	}
+    #[test]
+    #[should_panic]
+    fn open_self_pid_zero() {
+        assert!(is_our_fd(format!("/proc/{}/fd/0", id()).as_str()).unwrap());
+    }
 
-	#[test]
-	#[should_panic]
-	fn open_self_pid_one() {
-		follow_link(Path::new(format!("/proc/{}/fd/1", id()).as_str()), id()).unwrap();
-	}
+    #[test]
+    #[should_panic]
+    fn open_self_pid_one() {
+        assert!(is_our_fd(format!("/proc/{}/fd/1", id()).as_str()).unwrap());
+    }
 
-	#[test]
-	fn open_bash() {
-		follow_link(Path::new("/bin/bash"), id()).unwrap();
-	}
+    #[test]
+    fn open_bash() {
+        assert!(!is_our_fd("/bin/bash").unwrap());
+    }
 
-	#[test]
-	fn open_basic_config() {
-		follow_link(Path::new("config/default.toml"), id()).unwrap();
-	}
+    #[test]
+    fn open_basic_config() {
+        assert!(!is_our_fd("config/default.toml").unwrap());
+    }
 
-	#[test]
-	fn equal_configs() {
-		let base = Config::load("config/default.toml").unwrap();
-		let link = Config::load("config/default_link.toml").unwrap();
+    #[test]
+    fn equal_configs() {
+        let base = Config::load("config/default.toml").unwrap();
+        let link = Config::load("config/default_link.toml").unwrap();
 
-		for i in 0..base.program.len() {
-			assert!(base.program[i].corresponds_to(&link.program[i]))
-		}
-	}
+        for i in 0..base.program.len() {
+            assert_eq!(base.program[i], link.program[i])
+        }
+    }
 
-	#[test]
-	#[should_panic]
-	fn different_configs() {
-		let base = Config::load("config/default.toml").unwrap();
-		let diff = Config::load("config/default_diff.toml").unwrap();
+    #[test]
+    #[should_panic]
+    fn different_configs() {
+        let base = Config::load("config/default.toml").unwrap();
+        let diff = Config::load("config/default_diff.toml").unwrap();
 
-		for i in 0..base.program.len() {
-			assert!(base.program[i].corresponds_to(&diff.program[i]))
-		}
-	}
+        for i in 0..base.program.len() {
+            assert_eq!(base.program[i], diff.program[i])
+        }
+    }
 }
