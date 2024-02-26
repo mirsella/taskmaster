@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/22 10:40:09 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/26 15:05:35 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/26 15:08:37 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -253,35 +253,6 @@ impl Program {
         self.force_restart = true;
         self.stop();
     }
-    /// Applies a new config to the program, and restart if needed
-    pub fn update(&mut self, new: Program) {
-		if self.corresponds_to(&new) {
-			info!("Not updating {}: configuration didn't change", self.name);
-			return;
-		}
-		if self.update_asked {
-			if self.childs
-				.iter()
-				.all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
-			{
-				debug!("No childs left, clearing");
-				self.childs.clear();
-			}
-			if self.childs.len() == 0 {
-				debug!("Re-assignation");
-				self.assign_new(new);
-				self.update_asked = false;
-				self.force_restart = false;
-				self.start().unwrap(); // TO CHANGE
-			} else {
-				debug!("Not every child was stopped")
-			}
-		} else {
-			debug!("Restarting before reset");
-			self.restart();
-			self.update_asked = true;
-		}
-    }
     /// this need to be called regularly, to check the status of the program and its children.
     pub fn tick(&mut self) -> Result<(), Box<dyn Error>> {
         if self.force_restart
@@ -333,6 +304,22 @@ impl Program {
         self.childs = childs;
         self.restart();
     }
+    /// Applies a new config to the program, and restart if needed
+	pub fn status(&self) -> Row {
+		let name = self.name.clone();
+		let since = self.childs.iter().max_by_key(|x| x.last_update());
+		let running: usize = self.childs.iter()
+		.filter(|&c| {
+			matches!(c.status, Status::Running(_))
+		}).count();
+		let since_str = match since {
+			Some(c) => format!("{:?}", c.last_update().elapsed()),
+			None => "Unknown".to_string(),
+		};
+		let status_str = format!("{running}/{}", self.childs.len());
+
+		Row::new(vec![name, status_str, since_str])
+	}
 }
 
 impl PartialEq for Program {
