@@ -174,8 +174,8 @@ mod tests {
     }
     #[test]
     fn equal_configs() {
-        let base = Config::load("config/default.toml").unwrap();
-        let link = Config::load("config/default_link.toml").unwrap();
+        let base = Config::load("config/default_same1.toml").unwrap();
+        let link = Config::load("config/default_same2.toml").unwrap();
 
         for i in 0..base.program.len() {
             assert_eq!(base.program[i], link.program[i])
