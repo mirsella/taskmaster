@@ -17,12 +17,28 @@ mod tui;
 
 use config::Config;
 use crossterm::event::{self, Event, KeyCode};
+use libc::{c_void, sighandler_t, SIGHUP};
 use program::{child::Status, StartPolicy};
-use std::{env::args, error::Error, process::exit, time::Duration};
+use std::{
+    env::args,
+    error::Error,
+    process::exit,
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 use tracing::{error, info, warn};
 use tui::{Command, Tui};
 
+static mut RELOAD: AtomicBool = AtomicBool::new(false);
+fn sighup_handler() {
+    info!("Received SIGHUP");
+    unsafe { RELOAD.store(true, Ordering::Relaxed) }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    unsafe {
+        libc::signal(SIGHUP, sighup_handler as *mut c_void as sighandler_t);
+    }
     let mut tui = Tui::new()?;
     let tracing_filter_handle =
         logger::init_logger("taskmaster.log").map_err(|e| format!("starting tracing: {e}"))?;
@@ -57,6 +73,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             info!("All programs have stopped. Quitting");
             break;
         }
+        if unsafe { RELOAD.load(Ordering::Relaxed) } {
+            match Config::load(&config_path) {
+                Ok(new_config) => config.update(new_config)?,
+                Err(e) => {
+                    error!(error = e, "reloading the configuration file");
+                }
+            }
+            unsafe { RELOAD.store(false, Ordering::Relaxed) };
+        }
         tui.draw(&config.program)?;
         for program in &mut config.program {
             program.tick()?;
@@ -85,7 +110,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                             if path.is_empty() {
                                 path = config_path.clone()
                             }
-                            info!(path, "Reloading configuration");
                             match Config::load(&path) {
                                 Ok(new_config) => config.update(new_config)?,
                                 Err(e) => {

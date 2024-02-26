@@ -19,7 +19,7 @@ use tracing::{debug, error, instrument, trace, warn};
 
 use super::Program;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Status {
     Stopped(Instant),
     Finished(Instant, ExitStatus),
