@@ -19,13 +19,13 @@ use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
 use std::{
     collections::HashMap,
-	env::current_dir,
-	error::Error,
-	fmt::format,
-	fs::{self, File, OpenOptions},
-	mem, path::{Path, PathBuf},
-	process::{self, Command, Stdio},
-	time::Duration
+    env::current_dir,
+    error::Error,
+    fs::{self, File, OpenOptions},
+    mem,
+    path::{Path, PathBuf},
+    process::{self, Command, Stdio},
+    time::Duration,
 };
 use tracing::{debug, info, instrument, trace};
 
@@ -211,12 +211,12 @@ impl Program {
             name = self.name,
             "all processes started ({})", self.processes
         );
-		debug!(
-			name = self.name,
-			"\nargs = {:?}\nenv = {:?}",
-			self.args.clone(),
-			self.env.clone()
-		);
+        debug!(
+            name = self.name,
+            "\nargs = {:?}\nenv = {:?}",
+            self.args.clone(),
+            self.env.clone()
+        );
         Ok(())
     }
 
@@ -305,21 +305,22 @@ impl Program {
         self.restart();
     }
     /// Applies a new config to the program, and restart if needed
-	pub fn status(&self) -> Row {
-		let name = self.name.clone();
-		let since = self.childs.iter().max_by_key(|x| x.last_update());
-		let running: usize = self.childs.iter()
-		.filter(|&c| {
-			matches!(c.status, Status::Running(_))
-		}).count();
-		let since_str = match since {
-			Some(c) => format!("{:?}", c.last_update().elapsed()),
-			None => "Unknown".to_string(),
-		};
-		let status_str = format!("{running}/{}", self.childs.len());
+    pub fn status(&self) -> Row {
+        let name = self.name.clone();
+        let since = self.childs.iter().max_by_key(|x| x.last_update());
+        let running: usize = self
+            .childs
+            .iter()
+            .filter(|&c| matches!(c.status, Status::Running(_)))
+            .count();
+        let since_str = match since {
+            Some(c) => format!("{:?}", c.last_update().elapsed()),
+            None => "Unknown".to_string(),
+        };
+        let status_str = format!("{running}/{}", self.childs.len());
 
-		Row::new(vec![name, status_str, since_str])
-	}
+        Row::new(vec![name, status_str, since_str])
+    }
 }
 
 impl PartialEq for Program {
