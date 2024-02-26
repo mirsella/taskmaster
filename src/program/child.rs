@@ -15,7 +15,7 @@ use std::{
     process::{self, ExitStatus},
     time::Instant,
 };
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, instrument, trace, warn};
 
 use super::Program;
 
@@ -103,7 +103,7 @@ impl Child {
         };
         Ok(())
     }
-    /// TODO: Kill the child. for graceful shutdown, check stop().
+    /// Kill the child. for graceful shutdown, check stop().
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
         if let Status::Running(_) | Status::Starting(_) = self.status {
@@ -113,7 +113,7 @@ impl Child {
             self.status = Status::Stopped(Instant::now());
         }
     }
-    /// TODO: Kill the child. for graceful shutdown, check stop().
+    /// Kill the child. for graceful shutdown, check stop().
     #[instrument(skip_all)]
     pub fn stop(&mut self, signal: i32) {
         if let Status::Running(_) | Status::Starting(_) = self.status {
