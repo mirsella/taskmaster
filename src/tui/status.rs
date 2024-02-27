@@ -95,3 +95,16 @@ impl Program {
         res_lines
     }
 }
+
+impl Status {
+    pub fn color(&self) -> ratatui::style::Color {
+        match self {
+            Status::Stopped(_) => ratatui::style::Color::Blue,
+            Status::Starting(_) => ratatui::style::Color::Cyan,
+            Status::Terminating(_) => ratatui::style::Color::Yellow,
+            Status::Running(_) => ratatui::style::Color::Green,
+            Status::Finished(_, _) => ratatui::style::Color::Gray,
+            Status::Crashed(_) => ratatui::style::Color::Red,
+        }
+    }
+}

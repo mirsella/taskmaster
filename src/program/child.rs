@@ -24,6 +24,7 @@ use tracing::{debug, error, instrument, trace, warn};
 pub enum Status {
     /// The process is not running
     Stopped(Instant),
+    /// If the process has finished with a status code, not by a signal
     Finished(Instant, ExitStatus),
     /// being gracefully terminated
     Terminating(Instant),
@@ -31,6 +32,7 @@ pub enum Status {
     Starting(Instant),
     /// after min_runtime
     Running(Instant),
+    /// if the process has been stopped by a signal
     Crashed(Instant),
 }
 
@@ -58,19 +60,6 @@ impl PartialEq for Status {
                 | (Status::Running(_), Status::Running(_))
                 | (Status::Crashed(_), Status::Crashed(_))
         )
-    }
-}
-
-impl Status {
-    pub fn color(&self) -> ratatui::style::Color {
-        match self {
-            Status::Stopped(_) => ratatui::style::Color::Blue,
-            Status::Starting(_) => ratatui::style::Color::Cyan,
-            Status::Terminating(_) => ratatui::style::Color::Yellow,
-            Status::Running(_) => ratatui::style::Color::Green,
-            Status::Finished(_, _) => ratatui::style::Color::Gray,
-            Status::Crashed(_) => ratatui::style::Color::Red,
-        }
     }
 }
 
@@ -151,9 +140,9 @@ impl Child {
         let now = Instant::now();
         match self.process.try_wait() {
             Ok(Some(status)) => match (&self.status, status.signal(), status.code()) {
-                (Status::Finished(_, _), _, _) => {}          // Already assigned
-                (Status::Crashed(_), _, _) => {}              // Already assigned kill
-                (Status::Stopped(_), Some(_), None) => {}     // Already assigned
+                (Status::Finished(_, _), _, _) => {}      // Already assigned
+                (Status::Crashed(_), _, _) => {}          // Already assigned kill
+                (Status::Stopped(_), Some(_), None) => {} // Already assigned
                 (_, Some(sig), None) => {
                     if program.stop_signal as u8 == sig as u8 {
                         self.log_assign_status(
@@ -210,27 +199,30 @@ impl Child {
                 );
             }
         };
-        match (self.status, &program.restart_policy,
-				self.last_update().elapsed() > Duration::from_secs(1)) {
-			(_, _, false) => {}
-			(Status::Terminating(since), _, _) => {
-				if program.graceful_timeout < since.elapsed() {
-					warn!(
-						pid = self.process.id(),
-						name = program.name,
-						"graceful shutdown timeout, killing the child"
-					);
-					self.kill();
-				}
-				if program.min_runtime < since.elapsed() {
-					trace!(
-						pid = self.process.id(),
-						name = program.name,
-						"child is now considered as running"
-					);
-					self.status = Status::Running(Instant::now());
-				}
-			}
+        match (
+            self.status,
+            &program.restart_policy,
+            self.last_update().elapsed() > Duration::from_secs(1),
+        ) {
+            (_, _, false) => {}
+            (Status::Terminating(since), _, _) => {
+                if program.graceful_timeout < since.elapsed() {
+                    warn!(
+                        pid = self.process.id(),
+                        name = program.name,
+                        "graceful shutdown timeout, killing the child"
+                    );
+                    self.kill();
+                }
+                if program.min_runtime < since.elapsed() {
+                    trace!(
+                        pid = self.process.id(),
+                        name = program.name,
+                        "child is now considered as running"
+                    );
+                    self.status = Status::Running(Instant::now());
+                }
+            }
             (Status::Finished(_, code), RestartPolicy::UnexpectedExit, true) => {
                 if !program
                     .valid_exit_codes
@@ -245,8 +237,8 @@ impl Child {
                     );
                     self.restarts += 1;
                     let child = program.create_child()?;
-					self.process = child.process;
-					self.status = child.status;
+                    self.process = child.process;
+                    self.status = child.status;
                 }
             }
             (Status::Finished(_, code), RestartPolicy::Always, true) => {
@@ -257,32 +249,24 @@ impl Child {
                 );
                 self.restarts += 1;
                 let child = program.create_child()?;
-				self.process = child.process;
-				self.status = child.status;
+                self.process = child.process;
+                self.status = child.status;
             }
-			(Status::Crashed(_), RestartPolicy::UnexpectedExit, true) => {
-                if (self.restarts as isize) < program.max_restarts
-                        || program.max_restarts == -1
-                {
-                    debug!(
-                        name = program.name,
-                        "restarting a crashed child"
-                    );
+            (Status::Crashed(_), RestartPolicy::UnexpectedExit, true) => {
+                if (self.restarts as isize) < program.max_restarts || program.max_restarts == -1 {
+                    debug!(name = program.name, "restarting a crashed child");
                     self.restarts += 1;
-					let child = program.create_child()?;
-					self.process = child.process;
-					self.status = child.status;
+                    let child = program.create_child()?;
+                    self.process = child.process;
+                    self.status = child.status;
                 }
             }
             (Status::Crashed(_), RestartPolicy::Always, true) => {
-                debug!(
-                    name = program.name,
-                    "restarting a crashed child"
-                );
+                debug!(name = program.name, "restarting a crashed child");
                 self.restarts += 1;
                 let child = program.create_child()?;
-				self.process = child.process;
-				self.status = child.status;
+                self.process = child.process;
+                self.status = child.status;
             }
             _ => (),
         };

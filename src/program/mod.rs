@@ -260,17 +260,11 @@ impl Program {
     }
     /// this need to be called regularly, to check the status of the program and its children.
     pub fn tick(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.force_restart
-            && self
-                .childs
-                .iter()
-                .all(|c| matches!(c.status, Status::Finished(_, _) | Status::Stopped(_)))
-        {
+        if self.force_restart && self.all_stopped() {
             self.force_restart = false;
             self.childs.clear();
             self.start()?;
         }
-
         let finished_before = self.all_stopped();
         let mut childs = mem::take(&mut self.childs);
         for child in &mut childs {

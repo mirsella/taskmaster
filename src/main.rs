@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for program in &mut config.program {
         if let StartPolicy::Auto = program.start_policy {
             if let Err(e) = program.start() {
-                error!(error = e, "starting program");
+                error!(error = e, name = program.name, "starting program");
             }
         }
     }
