@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/26 17:22:15 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 12:48:53 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 13:43:36 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,7 +24,7 @@ impl Program {
 		let running: usize = self.childs.iter()
 								.filter(|&c| c.status.eq(&status_check))
 								.count();
-		if running == 0{
+		if running == 0 {
 			return None;
 		};
 		let since_str = match since {

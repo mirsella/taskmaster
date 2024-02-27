@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 12:54:56 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 13:49:25 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,11 +50,12 @@ impl fmt::Display for Status {
 impl PartialEq for Status {
 	fn eq(&self, other: &Self) -> bool {
 		match (self, other) {
+			(Status::Finished(_, _), Status::Finished(_, _))  => true,
 			(Status::Stopped(_), Status::Stopped(_))  => true,
 			(Status::Starting(_), Status::Starting(_))  => true,
 			(Status::Terminating(_), Status::Terminating(_))  => true,
 			(Status::Running(_), Status::Running(_))  => true,
-			(Status::Finished(_, _), Status::Finished(_, _))  => true,
+			(Status::Crashed(_), Status::Crashed(_))  => true,
 			_ => false,
 		}
 	}

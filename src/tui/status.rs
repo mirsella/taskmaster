@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/26 17:22:15 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 12:55:08 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 13:48:20 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -35,7 +35,7 @@ pub fn status(programs: &[Program]) -> Table {
 
 impl Program {
     /// Terminal status
-    fn status_global(&self, status_check: Status, force: bool) -> Option<Row> {
+    fn status_global(&self, status_check: Status) -> Option<Row> {
         let since = self
             .childs
             .iter()
@@ -46,7 +46,7 @@ impl Program {
             .iter()
             .filter(|&c| c.status.eq(&status_check))
             .count();
-        if running == 0 && !force {
+        if running == 0  {
             return None;
         };
         let since_str = match since {
@@ -68,29 +68,29 @@ impl Program {
 
     pub fn status(&self) -> Vec<Row> {
         let instant_dummy = Instant::now();
-        let running = self.status_global(Status::Running(instant_dummy), false);
-        let terminating = self.status_global(Status::Terminating(instant_dummy), false);
-        let starting = self.status_global(Status::Starting(instant_dummy), false);
-        let finished = self.status_global(
-            Status::Finished(instant_dummy, ExitStatus::default()),
-            false,
-        );
-        let stopped = self.status_global(Status::Stopped(instant_dummy), false);
+        let running = self.status_global(Status::Running(instant_dummy));
+        let terminating = self.status_global(Status::Terminating(instant_dummy));
+        let starting = self.status_global(Status::Starting(instant_dummy));
+        let finished = self.status_global(Status::Finished(instant_dummy, ExitStatus::default()),);
+        let stopped = self.status_global(Status::Stopped(instant_dummy));
+        let crashed = self.status_global(Status::Crashed(instant_dummy));
         let mut res_lines: Vec<Row> = vec![];
 
-        for line in [running, starting, terminating, stopped, finished]
+        for line in [running, starting, terminating, stopped, finished, crashed]
             .into_iter()
-            .flatten()
         {
-            res_lines.push(line);
+            if let Some(l) = line {
+				res_lines.push(l);
+			}
         }
 
         if res_lines.is_empty() {
-            // Safe because status_running always return a value if force == true
-            res_lines.push(
-                self.status_global(Status::Running(instant_dummy), true)
-                    .unwrap(),
-            );
+            res_lines.push(Row::new([
+				self.name.clone(),
+				"Not started".to_string(),
+				"No processes".to_string(),
+				"Unknown".to_string()
+			]))
         }
 
         res_lines
