@@ -22,7 +22,6 @@ use program::{child::Status, StartPolicy};
 use std::{
     env::args,
     error::Error,
-    process::exit,
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
@@ -36,23 +35,22 @@ fn sighup_handler() {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    unsafe {
-        libc::signal(SIGHUP, sighup_handler as *mut c_void as sighandler_t);
-    }
-    let mut tui = Tui::new()?;
     let tracing_filter_handle =
         logger::init_logger("taskmaster.log").map_err(|e| format!("starting tracing: {e}"))?;
     let config_path = args().nth(1).unwrap_or("config/default.toml".to_string());
     let mut config = match Config::load(&config_path) {
         Ok(v) => v,
         Err(e) => {
-            error!("parsing the configuration file {config_path:?}: {e}",);
-            exit(1);
+            error!("loading the configuration file {config_path:?}: {e}",);
+            return Err(format!("loading the configuration file {config_path}: {e}").into());
         }
     };
     config.tracing_filter_handle = Some(tracing_filter_handle);
     config.reload_tracing_level()?;
-
+    unsafe {
+        libc::signal(SIGHUP, sighup_handler as *mut c_void as sighandler_t);
+    }
+    let mut tui = Tui::new()?;
     for program in &mut config.program {
         if let StartPolicy::Auto = program.start_policy {
             if let Err(e) = program.start() {
@@ -65,12 +63,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         if pending_quit
             && config.program.iter().all(|p| {
-                p.childs
-                    .iter()
-                    .all(|c| matches!(c.status,
-						Status::Stopped(_)
-						| Status::Finished(_, _)
-						| Status::Crashed(_)))
+                p.childs.iter().all(|c| {
+                    matches!(
+                        c.status,
+                        Status::Stopped(_) | Status::Finished(_, _) | Status::Crashed(_)
+                    )
+                })
             })
         {
             info!("All programs have stopped. Quitting");
