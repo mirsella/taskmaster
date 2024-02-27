@@ -5,7 +5,7 @@ pub use self::command::Command;
 use crate::program::Program;
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableMouseCapture, EnableMouseCapture, Event, MouseEvent, MouseEventKind},
+    event::{DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -60,7 +60,7 @@ impl Tui {
             input: Input::default(),
             history: Vec::new(),
             history_index: 0,
-            table_state: TableState::new(),
+            table_state: TableState::default(),
         })
     }
 
@@ -201,11 +201,6 @@ impl Tui {
     /// pass the event to the Input handler
     pub fn handle_other_event(&mut self, key: &Event) {
         if let Event::Key(key) = key {
-            warn!(
-                "key event: {:?}, offest: {}",
-                key.code,
-                self.table_state.offset()
-            );
             match key.code {
                 crossterm::event::KeyCode::PageUp => {
                     let offset = self.table_state.offset().saturating_sub(3);
@@ -217,20 +212,7 @@ impl Tui {
                 }
                 _ => (),
             };
-            warn!(offset = self.table_state.offset(), "new offset");
-            // } else if let Event::Mouse(mouse_event) = key {
-            //     warn!("mouse event: {:?}", mouse_event.kind);
-            //     match mouse_event.kind {
-            //         MouseEventKind::ScrollUp => {
-            //             let offset = self.table_state.offset().saturating_sub(3);
-            //             self.table_state = self.table_state.clone().with_offset(offset)
-            //         }
-            //         MouseEventKind::ScrollDown => {
-            //             let offset = self.table_state.offset().saturating_add(3);
-            //             self.table_state = self.table_state.clone().with_offset(offset)
-            //         }
-            //         _ => (),
-            //     };
+            warn!("new offset is {}", self.table_state.offset());
         }
         self.history_index = 0;
         self.input.handle_event(key);
