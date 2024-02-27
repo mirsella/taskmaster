@@ -1,4 +1,5 @@
 pub mod command;
+mod status;
 
 pub use self::command::Command;
 use crate::program::Program;
@@ -14,7 +15,7 @@ use ratatui::{
     style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Row, Table},
+    widgets::{Block, Borders, Paragraph},
     Terminal,
 };
 use std::{io, panic};
@@ -109,9 +110,8 @@ impl Tui {
                 layout[1],
             );
 
-            let status = status(programs);
             frame.render_widget(
-                status.block(
+                status::status(programs).block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)
@@ -215,22 +215,6 @@ impl Tui {
             Err(_) => None,
         }
     }
-}
-
-fn status(programs: &[Program]) -> Table {
-    let mut rows = vec![Row::new(vec!["Name", "Status", "Processes", "Last update"])];
-    // TODO: https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
-	rows.push(Row::new(vec!["╺━━━━━╸"]));
-    for prog in programs {
-		let status_rows = prog.status();
-		for row in status_rows.clone() {
-			rows.push(row);
-		}
-		if !status_rows.is_empty() {
-			rows.push(Row::new(vec!["╺━━━━━╸"]));
-		}
-    }
-    Table::new(rows, &[])
 }
 
 impl Drop for Tui {

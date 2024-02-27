@@ -11,7 +11,6 @@
 /* ************************************************************************** */
 
 pub mod child;
-pub mod terminal_status;
 
 use crate::config::Signal;
 use child::{Child, Status};
