@@ -7,7 +7,7 @@ processes = 30
 args = ["tests/exit.py"]
 
 [[program]]
-name = "exit_and_signals"
+name = "exit and signals"
 command = "python3"
 processes = 30
 restart_policy = "unexpectedexit"

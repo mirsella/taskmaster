@@ -6,13 +6,14 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 19:24:19 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 10:39:05 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 pub mod signal;
 
 use crate::program::{generate_name, Program};
+use log::debug;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
@@ -51,7 +52,10 @@ impl Config {
         let mut config: Config = toml::from_str(&raw_file)?;
         let mut names = HashSet::new();
         for prog in &mut config.program {
-            if names.insert(prog.name.clone()) {
+			prog.name = prog.name.replace(" ", "_")
+									.trim_matches('_')
+									.to_string();
+            if !prog.name.is_empty() && names.insert(prog.name.clone()) {
                 continue;
             }
             // there is 1124 power of 981 combinaisons, we are safe
