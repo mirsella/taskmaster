@@ -17,7 +17,7 @@ use std::{
     error::Error,
     fmt,
     os::unix::process::ExitStatusExt,
-    process::{self, ExitStatus},
+    process,
     time::{Duration, Instant},
 };
 use tracing::{debug, error, instrument, trace, warn};
@@ -38,17 +38,6 @@ pub enum Status {
     Running(Instant),
 }
 impl Status {
-    pub fn set_instant(&mut self, instant: Instant) -> &mut Self {
-        match self {
-            Status::Stopped(t)
-            | Status::Finished(t, _)
-            | Status::Terminated(t, _)
-            | Status::Terminating(t)
-            | Status::Starting(t)
-            | Status::Running(t) => *t = instant,
-        };
-        self
-    }
     pub fn get_instant(&self) -> Instant {
         match self {
             Status::Stopped(t)
@@ -110,172 +99,61 @@ impl Child {
         }
     }
 
-    /// Logs the assignation of the status and assigns
-    fn log_assign_status(
-        &mut self,
-        status: Status,
-        program: &Program,
-        signal: Option<i32>,
-        exit: ExitStatus,
-    ) {
-        self.status = status;
-        match self.status {
-            Status::Crashed(_) => {
-                debug!(
-                    pid = self.process.id(),
-                    "{}: child process got killed or ended unexpectedly: {}",
-                    program.name,
-                    signal.unwrap_or(exit.code().unwrap()),
-                );
+    fn try_wait(&mut self, program: &Program) -> Result<(), Box<dyn Error>> {
+        let status = match self.process.try_wait() {
+            Ok(Some(status)) => status,
+            Ok(None) => return Ok(()),
+            Err(e) => {
+                warn!("couldn't get the status of the child process, weird: {e:?}");
+                return Err(e.into());
             }
-            Status::Finished(_, _) => {
-                debug!(
-                    pid = self.process.id(),
-                    name = program.name,
-                    "exit code" = exit.code(),
-                    "child process finished"
-                );
-            }
-            Status::Stopped(_) => {
-                debug!(
-                    pid = self.process.id(),
-                    name = program.name,
-                    "child process stopped"
-                );
-            }
-            Status::Terminating(_) => {
-                debug!(
-                    pid = self.process.id(),
-                    name = program.name,
-                    "child getting terminated"
-                );
-            }
-            Status::Running(_) => {
-                debug!(
-                    pid = self.process.id(),
-                    name = program.name,
-                    "child is now running"
-                );
-            }
-            Status::Starting(_) => {
-                debug!(
-                    pid = self.process.id(),
-                    name = program.name,
-                    "child is starting"
-                );
-            }
-        }
+        };
+        if let Some(sig) = status.signal() {
+            self.status = Status::Terminated(Instant::now(), sig);
+            let signal = Signal::try_from(sig)
+                .map(|s| ToString::to_string(&s))
+                .unwrap_or(format!("Unkown ({sig})"));
+            debug!(
+                pid = self.process.id(),
+                name = program.name,
+                signal,
+                "child process terminated by signal"
+            );
+        } else if let Some(code) = status.code() {
+            self.status = Status::Finished(Instant::now(), code);
+            debug!(
+                pid = self.process.id(),
+                name = program.name,
+                "exit code" = code,
+                "child process finished"
+            );
+        };
+        Ok(())
     }
 
     pub fn tick(&mut self, program: &mut Program) -> Result<(), Box<dyn Error>> {
-        let now = Instant::now();
-        match self.process.try_wait() {
-            Ok(Some(status)) => match (&self.status, status.signal(), status.code()) {
-                (Status::Finished(_, _), _, _) => {}      // Already assigned
-                (Status::Crashed(_), _, _) => {}          // Already assigned kill
-                (Status::Stopped(_), Some(_), None) => {} // Already assigned
-                (_, Some(sig), None) => {
-                    if program.stop_signal as u8 == sig as u8 {
-                        self.log_assign_status(
-                            Status::Stopped(now),
-                            program,
-                            status.signal(),
-                            status,
-                        )
-                    } else {
-                        self.log_assign_status(
-                            Status::Finished(now, status),
-                            program,
-                            status.signal(),
-                            status,
-                        )
-                    }
-                }
-                (_, None, Some(code)) => {
-                    if !program.valid_exit_codes.contains(&code) {
-                        self.log_assign_status(
-                            Status::Crashed(now),
-                            program,
-                            status.signal(),
-                            status,
-                        )
-                    } else {
-                        self.log_assign_status(
-                            Status::Finished(now, status),
-                            program,
-                            status.signal(),
-                            status,
-                        )
-                    }
-                }
-                (_, None, None) => {}       // wierd
-                (_, Some(_), Some(_)) => {} // wierd
-            },
-            Ok(None) => {
-                if self.status == Status::Starting(now)
-                    && self.last_update().elapsed() > program.min_runtime
-                {
-                    self.log_assign_status(
-                        Status::Running(now),
-                        program,
-                        None,
-                        ExitStatus::default(),
-                    )
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "couldn't get the status of the child process, weird: {:?}",
-                    e
-                );
-            }
-        };
+        self.try_wait(program)?;
+        // the third match condition is for restarting; timeout of 1 second between restart, and limited to max_restarts
         match (
             self.status,
             &program.restart_policy,
-            self.last_update().elapsed() > Duration::from_secs(1),
+            self.status.get_instant().elapsed() > Duration::from_secs(1)
+                && ((self.restarts as isize) < program.max_restarts || program.max_restarts == -1),
         ) {
-            (_, _, false) => {}
-            (Status::Terminating(since), _, _) => {
-                if program.graceful_timeout < since.elapsed() {
-                    warn!(
-                        pid = self.process.id(),
-                        name = program.name,
-                        "graceful shutdown timeout, killing the child"
-                    );
-                    self.kill();
-                }
-                if program.min_runtime < since.elapsed() {
-                    trace!(
-                        pid = self.process.id(),
-                        name = program.name,
-                        "child is now considered as running"
-                    );
-                    self.status = Status::Running(Instant::now());
-                }
+            (Status::Terminating(since), _, _) if since.elapsed() > program.graceful_timeout => {
+                warn!(
+                    pid = self.process.id(),
+                    name = program.name,
+                    "graceful shutdown timeout, killing the child"
+                );
+                self.kill();
             }
-            (Status::Finished(_, code), RestartPolicy::UnexpectedExit, true) => {
-                if !program
-                    .valid_exit_codes
-                    .contains(&code.code().unwrap_or_default())
-                    && ((self.restarts as isize) < program.max_restarts
-                        || program.max_restarts == -1)
-                {
-                    debug!(
-                        name = program.name,
-                        exit_code = code.code(),
-                        "restarting a finished child"
-                    );
-                    self.restarts += 1;
-                    let child = program.create_child()?;
-                    self.process = child.process;
-                    self.status = child.status;
-                }
-            }
-            (Status::Finished(_, code), RestartPolicy::Always, true) => {
+            (Status::Finished(_, code), RestartPolicy::UnexpectedExit, true)
+                if !program.valid_exit_codes.contains(&code) =>
+            {
                 debug!(
                     name = program.name,
-                    exit_code = code.code(),
+                    exit_code = code,
                     "restarting a finished child"
                 );
                 self.restarts += 1;
@@ -283,26 +161,50 @@ impl Child {
                 self.process = child.process;
                 self.status = child.status;
             }
-            (Status::Crashed(_), RestartPolicy::UnexpectedExit, true) => {
-                if (self.restarts as isize) < program.max_restarts || program.max_restarts == -1 {
-                    debug!(name = program.name, "restarting a crashed child");
-                    self.restarts += 1;
-                    let child = program.create_child()?;
-                    self.process = child.process;
-                    self.status = child.status;
-                }
-            }
-            (Status::Crashed(_), RestartPolicy::Always, true) => {
-                debug!(name = program.name, "restarting a crashed child");
+            (Status::Finished(_, code), RestartPolicy::Always, true) => {
+                debug!(
+                    name = program.name,
+                    exit_code = code,
+                    "restarting a finished child"
+                );
                 self.restarts += 1;
                 let child = program.create_child()?;
                 self.process = child.process;
                 self.status = child.status;
             }
+            (Status::Terminated(_, code), RestartPolicy::UnexpectedExit, true)
+                if program.stop_signal as i32 != code =>
+            {
+                debug!(
+                    name = program.name,
+                    signal = code,
+                    "restarting a terminated child"
+                );
+                self.restarts += 1;
+                let child = program.create_child()?;
+                self.process = child.process;
+                self.status = child.status;
+            }
+            (Status::Terminated(_, code), RestartPolicy::Always, true) => {
+                debug!(
+                    name = program.name,
+                    signal = code,
+                    "restarting a terminated child"
+                );
+                self.restarts += 1;
+                let child = program.create_child()?;
+                self.process = child.process;
+                self.status = child.status;
+            }
+            (Status::Starting(since), _, _) if since.elapsed() > program.min_runtime => {
+                self.status = Status::Running(since);
+                trace!(name = program.name, "child is now considered as running");
+            }
             _ => (),
         };
         Ok(())
     }
+
     /// Kill the child. for graceful shutdown, check stop().
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
@@ -321,17 +223,6 @@ impl Child {
                 error!(pid = self.process.id(), "couldn't send signal to the child");
             }
             self.status = Status::Terminating(Instant::now());
-        }
-    }
-
-    pub fn last_update(&self) -> Instant {
-        match self.status {
-            Status::Finished(t, _)
-            | Status::Running(t)
-            | Status::Stopped(t)
-            | Status::Terminating(t)
-            | Status::Starting(t) => t,
-            Status::Crashed(t) => t,
         }
     }
 }

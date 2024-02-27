@@ -12,7 +12,7 @@
 
 use crate::program::{child::Status, Program};
 use ratatui::{
-    style::{Color, Style, Styled},
+    style::Color,
     widgets::{Cell, Row, Table},
 };
 pub fn status(programs: &[Program]) -> Table {
@@ -30,11 +30,7 @@ pub fn status(programs: &[Program]) -> Table {
 
 impl Program {
     pub fn status(&self) -> Vec<Row> {
-        let statuss = self
-            .childs
-            .iter()
-            .map(|c| c.status.clone())
-            .collect::<Vec<_>>();
+        let statuss = self.childs.iter().map(|c| c.status).collect::<Vec<_>>();
         let mut vec: Vec<(Status, i32)> = Vec::new();
         for status in statuss {
             if let Some(v) = vec.iter_mut().find(|x| x.0.eq_ignore_instant(&status)) {
