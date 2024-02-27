@@ -12,11 +12,9 @@
 
 use crate::program::{child::Status, Program};
 use ratatui::{
-    style::{Color, Style},
+    style::{Color, Style, Styled},
     widgets::{Cell, Row, Table},
 };
-use std::{borrow::BorrowMut, collections::HashMap, mem, time::Instant};
-
 pub fn status(programs: &[Program]) -> Table {
     let mut rows = vec![Row::new(vec!["Name", "Status", "Processes", "Last update"])];
     rows.push(Row::new(vec!["╺━━━━━╸"]));
@@ -32,23 +30,34 @@ pub fn status(programs: &[Program]) -> Table {
 
 impl Program {
     pub fn status(&self) -> Vec<Row> {
-        let same_instant = Instant::now();
         let statuss = self
             .childs
             .iter()
-            .map(|c| {
-                c.status.to_owned().set_instant(same_instant);
-                c
-            })
+            .map(|c| c.status.clone())
             .collect::<Vec<_>>();
-        let mut map = HashMap::new();
+        let mut vec: Vec<(Status, i32)> = Vec::new();
         for status in statuss {
-            let key = status.status.to_owned();
-            let value = map.entry(key).or_insert(0);
-            *value += 1;
+            if let Some(v) = vec.iter_mut().find(|x| x.0.eq_ignore_instant(&status)) {
+                v.1 += 1;
+                if v.0.get_instant() < status.get_instant() {
+                    v.0 = status;
+                }
+            } else {
+                vec.push((status, 1));
+            }
         }
 
         let mut lines = vec![];
+        for (status, count) in vec {
+            lines.push(Row::new([
+                Cell::from(self.name.clone()),
+                Cell::from(status.to_string())
+                    .style(status.color(&self.valid_exit_codes, self.stop_signal as i32)),
+                Cell::from(format!("{count}/{}", self.childs.len())),
+                Cell::from(format!("{:?}", status.get_instant().elapsed())),
+            ]));
+        }
+
         if lines.is_empty() {
             lines.push(Row::new([
                 self.name.clone(),

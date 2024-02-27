@@ -22,7 +22,7 @@ use std::{
 };
 use tracing::{debug, error, instrument, trace, warn};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub enum Status {
     /// The process is not running
     Stopped(Instant),
@@ -38,7 +38,7 @@ pub enum Status {
     Running(Instant),
 }
 impl Status {
-    pub fn set_instant(&mut self, instant: Instant) {
+    pub fn set_instant(&mut self, instant: Instant) -> &mut Self {
         match self {
             Status::Stopped(t)
             | Status::Finished(t, _)
@@ -46,7 +46,8 @@ impl Status {
             | Status::Terminating(t)
             | Status::Starting(t)
             | Status::Running(t) => *t = instant,
-        }
+        };
+        self
     }
     pub fn get_instant(&self) -> Instant {
         match self {
@@ -56,6 +57,18 @@ impl Status {
             | Status::Terminating(t)
             | Status::Starting(t)
             | Status::Running(t) => *t,
+        }
+    }
+
+    pub fn eq_ignore_instant(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Stopped(_), Self::Stopped(_)) => true,
+            (Self::Finished(_, a), Self::Finished(_, b)) => a == b,
+            (Self::Terminated(_, a), Self::Terminated(_, b)) => a == b,
+            (Self::Terminating(_), Self::Terminating(_)) => true,
+            (Self::Starting(_), Self::Starting(_)) => true,
+            (Self::Running(_), Self::Running(_)) => true,
+            _ => false,
         }
     }
 }
