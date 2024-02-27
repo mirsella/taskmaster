@@ -139,14 +139,14 @@ impl Program {
                 Ok(f)
             })
         };
-        trace!(name = self.name, where = ?self.stdin, "Setting up stdin");
+        trace!(name = self.name, "where" = ?self.stdin, "Setting up stdin");
         let stdin = setup_io(
             self.stdin.as_deref(),
             File::options().read(true).create(false),
         )?;
         trace!(
             name = self.name,
-            where = ?self.stdout,
+            "where" = ?self.stdout,
             "Setting up stdout"
         );
         let stdout = setup_io(
@@ -156,7 +156,7 @@ impl Program {
                 .truncate(self.stdout_truncate)
                 .create(true),
         )?;
-        trace!(name = self.name, where = ?self.stderr, "Setting up stderr");
+        trace!(name = self.name, "where" = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
