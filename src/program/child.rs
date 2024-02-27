@@ -49,6 +49,12 @@ impl Status {
         }
     }
 
+    pub fn is_running(&self) -> bool {
+        match self {
+            Status::Running(_) | Status::Starting(_) | Status::Terminating(_) => true,
+            Status::Stopped(_) | Status::Finished(_, _) | Status::Terminated(_, _) => false,
+        }
+    }
     pub fn eq_ignore_instant(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Stopped(_), Self::Stopped(_)) => true,
@@ -101,12 +107,12 @@ impl Child {
 
     fn try_wait(&mut self, program: &Program) -> Result<(), Box<dyn Error>> {
         let status = match self.process.try_wait() {
-            Ok(Some(status)) => status,
-            Ok(None) => return Ok(()),
+            Ok(Some(status)) if self.status.is_running() => status,
             Err(e) => {
                 warn!("couldn't get the status of the child process, weird: {e:?}");
                 return Err(e.into());
             }
+            _ => return Ok(()),
         };
         if let Some(sig) = status.signal() {
             self.status = Status::Terminated(Instant::now(), sig);

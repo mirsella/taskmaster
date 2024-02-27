@@ -299,10 +299,7 @@ impl Program {
     }
     /// if all the children are stopped or finished
     pub fn all_stopped(&self) -> bool {
-        self.childs.iter().all(|c| match c.status {
-            Status::Finished(_, _) | Status::Stopped(_) | Status::Terminated(_, _) => true,
-            Status::Terminating(_) | Status::Starting(_) | Status::Running(_) => false,
-        })
+        self.childs.iter().all(|c| !c.status.is_running())
     }
 }
 
