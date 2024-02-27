@@ -5,7 +5,7 @@ pub use self::command::Command;
 use crate::program::Program;
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableMouseCapture, EnableMouseCapture, Event},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -18,7 +18,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, TableState},
     Terminal,
 };
-use std::{io, panic};
+use std::{error::Error, io, panic, time::Duration};
 use tracing::trace;
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
@@ -31,8 +31,8 @@ type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<st
 #[derive(Debug)]
 pub struct Tui {
     terminal: CrosstermTerminal,
-    pub input: Input,
-    pub history: Vec<String>,
+    input: Input,
+    history: Vec<String>,
     history_index: usize,
     table_state: TableState,
 }
@@ -199,24 +199,33 @@ impl Tui {
     }
 
     /// pass the event to the Input handler
-    pub fn handle_other_event(&mut self, key: &Event) {
-        if let Event::Key(key) = key {
+    pub fn tick(&mut self, timeout: Duration) -> Result<Option<Command>, Box<dyn Error>> {
+        if !event::poll(timeout)? {
+            return Ok(None);
+        }
+        let event = event::read()?;
+        if let Event::Key(key) = event {
             match key.code {
-                crossterm::event::KeyCode::PageUp => {
+                KeyCode::PageUp => {
                     let offset = self.table_state.offset().saturating_sub(3);
                     *self.table_state.offset_mut() = offset;
                     *self.table_state.selected_mut() = Some(offset);
                 }
-                crossterm::event::KeyCode::PageDown => {
+                KeyCode::PageDown => {
                     let offset = self.table_state.offset().saturating_add(3);
                     *self.table_state.offset_mut() = offset;
                     *self.table_state.selected_mut() = Some(offset);
                 }
-                _ => (),
+                KeyCode::Enter => return Ok(self.handle_enter()),
+                KeyCode::Up => self.history_up(),
+                KeyCode::Down => self.history_down(),
+                _ => {
+                    self.history_index = 0;
+                    self.input.handle_event(&event);
+                }
             };
-        }
-        self.history_index = 0;
-        self.input.handle_event(key);
+        };
+        Ok(None)
     }
 
     /// check for a valid command and reset the input
