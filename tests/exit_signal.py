@@ -5,6 +5,8 @@ import random
 import signal
 from time import sleep
 
+sleep(3)
+
 decider = random.randint(0, 2)
 
 if decider == 0:

@@ -10,4 +10,7 @@ args = ["tests/exit.py"]
 name = "exit_and_signals"
 command = "python3"
 processes = 30
+restart_policy = "unexpectedexit"
+max_restarts = 2
+min_runtime = 5
 args = ["tests/exit_signal.py"]

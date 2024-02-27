@@ -6,14 +6,12 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/26 14:48:47 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 10:02:11 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 use std::{
-    error::Error,
-    process::{self, ExitStatus},
-    time::Instant,
+    error::Error, fmt, process::{self, ExitStatus}, time::Instant
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -29,6 +27,43 @@ pub enum Status {
     Starting(Instant),
     /// after min_runtime
     Running(Instant),
+}
+
+impl fmt::Display for Status {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self  {
+			Status::Stopped(_) => write!(f, "Stopped"),
+			Status::Starting(_) => write!(f, "Starting"),
+			Status::Terminating(_) => write!(f, "Terminating"),
+			Status::Running(_) => write!(f, "Running"),
+			Status::Finished(_, code) => write!(f, "Finished ({code})"),
+		}
+	}
+}
+
+impl PartialEq for Status {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(Status::Stopped(_), Status::Stopped(_))  => true,
+			(Status::Starting(_), Status::Starting(_))  => true,
+			(Status::Terminating(_), Status::Terminating(_))  => true,
+			(Status::Running(_), Status::Running(_))  => true,
+			(Status::Finished(_, _), Status::Finished(_, _))  => true,
+			_ => false,
+		}
+	}
+}
+
+impl Status {
+	pub fn color(&self) -> ratatui::style::Color {
+		match self {
+			Status::Stopped(_) => ratatui::style::Color::Red,
+			Status::Starting(_) => ratatui::style::Color::Cyan,
+			Status::Terminating(_) => ratatui::style::Color::Yellow,
+			Status::Running(_) => ratatui::style::Color::Green,
+			Status::Finished(_, _) => ratatui::style::Color::Gray,
+		}
+	}
 }
 
 #[derive(Debug)]

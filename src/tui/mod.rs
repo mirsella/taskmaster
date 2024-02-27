@@ -1,7 +1,7 @@
 pub mod command;
 
 pub use self::command::Command;
-use crate::program::{Program};
+use crate::program::Program;
 use crossterm::{
     cursor::{Hide, Show},
     event::{DisableMouseCapture, EnableMouseCapture},
@@ -221,12 +221,12 @@ fn status(programs: &[Program]) -> Table {
     let mut rows = vec![Row::new(vec!["Name", "Status", "Processes", "Last update"])];
     // TODO: https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
 	rows.push(Row::new(vec!["╺━━━━━╸"]));
-    for i in 0..programs.len() {
-		let status_rows = programs[i].status();
+    for prog in programs {
+		let status_rows = prog.status();
 		for row in status_rows.clone() {
 			rows.push(row);
 		}
-		if status_rows.len() > 0 {
+		if !status_rows.is_empty() {
 			rows.push(Row::new(vec!["╺━━━━━╸"]));
 		}
     }
