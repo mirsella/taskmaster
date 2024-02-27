@@ -13,7 +13,6 @@
 pub mod signal;
 
 use crate::program::{generate_name, Program};
-use log::debug;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 pub use signal::Signal;
@@ -52,9 +51,11 @@ impl Config {
         let mut config: Config = toml::from_str(&raw_file)?;
         let mut names = HashSet::new();
         for prog in &mut config.program {
-			prog.name = prog.name.replace(" ", "_")
-									.trim_matches('_')
-									.to_string();
+            prog.name = prog
+                .name
+                .replace(" ", "_")
+                .trim_matches(['_', ' '])
+                .to_string();
             if !prog.name.is_empty() && names.insert(prog.name.clone()) {
                 continue;
             }
