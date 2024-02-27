@@ -6,17 +6,14 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 13:49:25 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 14:31:35 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 use super::{Program, RestartPolicy};
 use std::{
-    error::Error,
-    fmt,
-    process::{self, ExitStatus},
-    time::Instant,
-	os::unix::process::ExitStatusExt,
+    error::Error, fmt, os::unix::process::ExitStatusExt,
+	process::{self, ExitStatus}, time::{Duration, Instant}
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -141,6 +138,7 @@ impl Child {
         match self.process.try_wait() {
             Ok(Some(status)) => match (&self.status, status.signal(), status.code()) {
 				(Status::Finished(_, _), None, Some(_)) => {}, // Already assigned
+				(Status::Finished(_, _), Some(_), None) => {}, // Already assigned
 				(Status::Crashed(_), Some(_), None) => {}, // Already assigned kill
 				(Status::Crashed(_), None, Some(_)) => {}, // Already assigned bad exit
 				(Status::Stopped(_), Some(_), None) => {}, // Already assigned
@@ -174,53 +172,10 @@ impl Child {
                 );
             }
         };
-        match (self.status, &program.restart_policy) {
-            (Status::Finished(_, code), RestartPolicy::UnexpectedExit) => {
-                if !program
-                    .valid_exit_codes
-                    .contains(&code.code().unwrap_or_default())
-                    && ((self.restarts as isize) < program.max_restarts
-                        || program.max_restarts == -1)
-                {
-                    debug!(
-                        name = program.name,
-                        exit_code = code.code(),
-                        "restarting a finished child"
-                    );
-                    self.restarts += 1;
-                    self.process = program.create_child()?.process;
-                }
-            }
-            (Status::Finished(_, code), RestartPolicy::Always) => {
-                debug!(
-                    name = program.name,
-                    exit_code = code.code(),
-                    "restarting a finished child"
-                );
-                self.restarts += 1;
-                self.process = program.create_child()?.process;
-            }
-			(Status::Crashed(_), RestartPolicy::UnexpectedExit) => {
-                if (self.restarts as isize) < program.max_restarts
-                        || program.max_restarts == -1
-                {
-                    debug!(
-                        name = program.name,
-                        "restarting a crashed child"
-                    );
-                    self.restarts += 1;
-                    self.process = program.create_child()?.process;
-                }
-            }
-            (Status::Crashed(_), RestartPolicy::Always) => {
-                debug!(
-                    name = program.name,
-                    "restarting a crashed child"
-                );
-                self.restarts += 1;
-                self.process = program.create_child()?.process;
-            }
-            (Status::Terminating(since), _) => {
+        match (self.status, &program.restart_policy,
+				self.last_update().elapsed() > Duration::from_secs(1)) {
+			(_, _, false) => {}
+			(Status::Terminating(since), _, _) => {
 				if program.graceful_timeout < since.elapsed() {
 					warn!(
 						pid = self.process.id(),
@@ -238,6 +193,59 @@ impl Child {
 					self.status = Status::Running(Instant::now());
 				}
 			}
+            (Status::Finished(_, code), RestartPolicy::UnexpectedExit, true) => {
+                if !program
+                    .valid_exit_codes
+                    .contains(&code.code().unwrap_or_default())
+                    && ((self.restarts as isize) < program.max_restarts
+                        || program.max_restarts == -1)
+                {
+                    debug!(
+                        name = program.name,
+                        exit_code = code.code(),
+                        "restarting a finished child"
+                    );
+                    self.restarts += 1;
+                    let child = program.create_child()?;
+					self.process = child.process;
+					self.status = child.status;
+                }
+            }
+            (Status::Finished(_, code), RestartPolicy::Always, true) => {
+                debug!(
+                    name = program.name,
+                    exit_code = code.code(),
+                    "restarting a finished child"
+                );
+                self.restarts += 1;
+                let child = program.create_child()?;
+				self.process = child.process;
+				self.status = child.status;
+            }
+			(Status::Crashed(_), RestartPolicy::UnexpectedExit, true) => {
+                if (self.restarts as isize) < program.max_restarts
+                        || program.max_restarts == -1
+                {
+                    debug!(
+                        name = program.name,
+                        "restarting a crashed child"
+                    );
+                    self.restarts += 1;
+					let child = program.create_child()?;
+					self.process = child.process;
+					self.status = child.status;
+                }
+            }
+            (Status::Crashed(_), RestartPolicy::Always, true) => {
+                debug!(
+                    name = program.name,
+                    "restarting a crashed child"
+                );
+                self.restarts += 1;
+				let child = program.create_child()?;
+				self.process = child.process;
+				self.status = child.status;
+            }
             _ => (),
         };
         Ok(())

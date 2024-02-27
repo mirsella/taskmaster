@@ -30,3 +30,9 @@ processes = 5
 restart_policy = "never"
 valid_exit_codes = [0, 2, 3, 4, 8, 9]
 args = ["tests/bad_exit.py"]
+
+[[program]]
+name = "always crash"
+command = "false"
+processes = 1
+restart_policy = "always"
