@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:09:10 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 12:22:27 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 14:00:31 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -67,7 +67,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             && config.program.iter().all(|p| {
                 p.childs
                     .iter()
-                    .all(|c| matches!(c.status, Status::Stopped(_) | Status::Finished(_, _)))
+                    .all(|c| matches!(c.status,
+						Status::Stopped(_)
+						| Status::Finished(_, _)
+						| Status::Crashed(_)))
             })
         {
             info!("All programs have stopped. Quitting");
