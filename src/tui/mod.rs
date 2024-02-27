@@ -19,7 +19,7 @@ use ratatui::{
     Terminal,
 };
 use std::{io, panic};
-use tracing::{trace, warn};
+use tracing::trace;
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
 
@@ -60,7 +60,7 @@ impl Tui {
             input: Input::default(),
             history: Vec::new(),
             history_index: 0,
-            table_state: TableState::default(),
+            table_state: TableState::default().with_selected(0),
         })
     }
 
@@ -205,14 +205,15 @@ impl Tui {
                 crossterm::event::KeyCode::PageUp => {
                     let offset = self.table_state.offset().saturating_sub(3);
                     *self.table_state.offset_mut() = offset;
+                    *self.table_state.selected_mut() = Some(offset);
                 }
                 crossterm::event::KeyCode::PageDown => {
                     let offset = self.table_state.offset().saturating_add(3);
                     *self.table_state.offset_mut() = offset;
+                    *self.table_state.selected_mut() = Some(offset);
                 }
                 _ => (),
             };
-            warn!("new offset is {}", self.table_state.offset());
         }
         self.history_index = 0;
         self.input.handle_event(key);
