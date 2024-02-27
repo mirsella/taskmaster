@@ -139,14 +139,14 @@ impl Program {
                 Ok(f)
             })
         };
-        trace!(name = self.name, path = ?self.stdin, "Setting up stdin");
+        trace!(name = self.name, where = ?self.stdin, "Setting up stdin");
         let stdin = setup_io(
             self.stdin.as_deref(),
             File::options().read(true).create(false),
         )?;
         trace!(
             name = self.name,
-            path = ?self.stdout,
+            where = ?self.stdout,
             "Setting up stdout"
         );
         let stdout = setup_io(
@@ -156,7 +156,7 @@ impl Program {
                 .truncate(self.stdout_truncate)
                 .create(true),
         )?;
-        trace!(name = self.name, path = ?self.stderr, "Setting up stderr");
+        trace!(name = self.name, where = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
@@ -218,13 +218,15 @@ impl Program {
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
         for child in &mut self.childs {
-            debug!(
-                pid = child.process.id(),
-                name = self.name,
-                signal = %self.stop_signal,
-                "Killing"
-            );
-            let _ = child.process.kill();
+            if let Status::Running(_) | Status::Starting(_) = child.status {
+                debug!(
+                    pid = child.process.id(),
+                    name = self.name,
+                    signal = %self.stop_signal,
+                    "Killing"
+                );
+                let _ = child.process.kill();
+            }
         }
     }
 

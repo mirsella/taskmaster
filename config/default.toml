@@ -6,7 +6,7 @@ command = "/bin/bash"
 processes = 2
 start_policy = "auto"
 valid_exit_codes = [0]
-min_runtime = 1
+min_runtime = 3
 restart_policy = "never"
 max_restarts = 3
 stop_signal = "SIGTERM"
@@ -19,7 +19,7 @@ cwd = "/tmp"
 umask = 0o777
 user = "root"
 
-# [[program]]
-# name = "ShouldFail"
-# command = "does not exist"
-# processes = 1
+[[program]]
+name = "ShouldFail"
+command = "does not exist"
+processes = 1
