@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 14:37:41 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 14:39:31 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -151,10 +151,8 @@ impl Child {
         let now = Instant::now();
         match self.process.try_wait() {
             Ok(Some(status)) => match (&self.status, status.signal(), status.code()) {
-                (Status::Finished(_, _), None, Some(_)) => {} // Already assigned
-				(Status::Finished(_, _), Some(_), None) => {}, // Already assigned
-                (Status::Crashed(_), Some(_), None) => {}     // Already assigned kill
-                (Status::Crashed(_), None, Some(_)) => {}     // Already assigned bad exit
+                (Status::Finished(_, _), _, _) => {}          // Already assigned
+                (Status::Crashed(_), _, _) => {}              // Already assigned kill
                 (Status::Stopped(_), Some(_), None) => {}     // Already assigned
                 (_, Some(sig), None) => {
                     if program.stop_signal as u8 == sig as u8 {
