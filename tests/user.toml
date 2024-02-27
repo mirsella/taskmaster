@@ -1,0 +1,13 @@
+[[program]]
+name = "running as root"
+user = "root"
+command = "bash"
+stdout = "root.log"
+args = ["-c", "sleep 1; whoami"]
+
+[[program]]
+name = "running as user"
+user = "user"
+command = "bash"
+stdout = "user.log"
+args = ["-c", "sleep 1; whoami"]
