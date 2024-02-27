@@ -5,7 +5,7 @@ pub use self::command::Command;
 use crate::program::Program;
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, MouseEvent, MouseEventKind},
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -15,11 +15,11 @@ use ratatui::{
     style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, TableState},
     Terminal,
 };
 use std::{io, panic};
-use tracing::trace;
+use tracing::{trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 use tui_logger::TuiLoggerWidget;
 
@@ -34,6 +34,7 @@ pub struct Tui {
     pub input: Input,
     pub history: Vec<String>,
     history_index: usize,
+    table_state: TableState,
 }
 
 impl Tui {
@@ -59,6 +60,7 @@ impl Tui {
             input: Input::default(),
             history: Vec::new(),
             history_index: 0,
+            table_state: TableState::new(),
         })
     }
 
@@ -110,7 +112,7 @@ impl Tui {
                 layout[1],
             );
 
-            frame.render_widget(
+            frame.render_stateful_widget(
                 status::status(programs).block(
                     Block::default()
                         .title("Status")
@@ -123,8 +125,8 @@ impl Tui {
                         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT),
                 ),
                 layout[2],
+                &mut self.table_state,
             );
-
             let style = if self.input.value().parse::<Command>().is_ok() {
                 Style::new().light_green()
             } else {
@@ -197,7 +199,39 @@ impl Tui {
     }
 
     /// pass the event to the Input handler
-    pub fn handle_other_event(&mut self, key: &crossterm::event::Event) {
+    pub fn handle_other_event(&mut self, key: &Event) {
+        if let Event::Key(key) = key {
+            warn!(
+                "key event: {:?}, offest: {}",
+                key.code,
+                self.table_state.offset()
+            );
+            match key.code {
+                crossterm::event::KeyCode::PageUp => {
+                    let offset = self.table_state.offset().saturating_sub(3);
+                    *self.table_state.offset_mut() = offset;
+                }
+                crossterm::event::KeyCode::PageDown => {
+                    let offset = self.table_state.offset().saturating_add(3);
+                    *self.table_state.offset_mut() = offset;
+                }
+                _ => (),
+            };
+            warn!(offset = self.table_state.offset(), "new offset");
+            // } else if let Event::Mouse(mouse_event) = key {
+            //     warn!("mouse event: {:?}", mouse_event.kind);
+            //     match mouse_event.kind {
+            //         MouseEventKind::ScrollUp => {
+            //             let offset = self.table_state.offset().saturating_sub(3);
+            //             self.table_state = self.table_state.clone().with_offset(offset)
+            //         }
+            //         MouseEventKind::ScrollDown => {
+            //             let offset = self.table_state.offset().saturating_add(3);
+            //             self.table_state = self.table_state.clone().with_offset(offset)
+            //         }
+            //         _ => (),
+            //     };
+        }
         self.history_index = 0;
         self.input.handle_event(key);
     }
