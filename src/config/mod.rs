@@ -104,7 +104,7 @@ mod tests {
     use super::{Config, Signal};
     use crate::program::{RestartPolicy, StartPolicy};
     use std::path::Path;
-    const CONFIG: &str = "config/tests.toml";
+    const CONFIG: &str = "tests/tests.toml";
 
     #[test]
     fn default() {
@@ -157,11 +157,11 @@ mod tests {
     #[test]
     #[should_panic]
     fn invalid_config() {
-        Config::load("config/invalid.toml").unwrap();
+        Config::load("tests/invalid.toml").unwrap();
     }
     #[test]
     fn invalid_config_no_command() {
-        dbg!(Config::load("config/no_command.toml"))
+        dbg!(Config::load("tests/no_command.toml"))
             .unwrap_err()
             .to_string()
             .contains("missing field `command`")
@@ -172,7 +172,7 @@ mod tests {
     #[should_panic]
     fn different_configs() {
         let base = Config::load("config/default.toml").unwrap();
-        let diff = Config::load("config/default_diff.toml").unwrap();
+        let diff = Config::load("tests/default_diff.toml").unwrap();
 
         for i in 0..base.program.len() {
             assert_eq!(base.program[i], diff.program[i])
@@ -180,8 +180,8 @@ mod tests {
     }
     #[test]
     fn equal_configs() {
-        let base = Config::load("config/default_same1.toml").unwrap();
-        let link = Config::load("config/default_same2.toml").unwrap();
+        let base = Config::load("tests/default_same1.toml").unwrap();
+        let link = Config::load("tests/default_same2.toml").unwrap();
 
         for i in 0..base.program.len() {
             assert_eq!(base.program[i], link.program[i])
