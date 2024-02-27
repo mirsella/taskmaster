@@ -111,9 +111,14 @@ impl Tui {
                     ),
                 layout[1],
             );
-
+            let widths = [
+                Constraint::Percentage(25),
+                Constraint::Fill(1),
+                Constraint::Percentage(10),
+                Constraint::Length(15),
+            ];
             frame.render_stateful_widget(
-                status::status(programs).block(
+                status::status(programs).widths(widths).block(
                     Block::default()
                         .title("Status")
                         .title_alignment(Alignment::Center)
