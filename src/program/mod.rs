@@ -26,7 +26,7 @@ use std::{
     process::{self, Command, Stdio},
     time::Duration,
 };
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, error, info, instrument, trace};
 
 #[derive(Deserialize, Debug, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -259,7 +259,9 @@ impl Program {
         if self.force_restart && self.all_stopped() {
             self.force_restart = false;
             self.childs.clear();
-            self.start()?;
+            if let Err(e) = self.start() {
+                error!(error = e, name = self.name, "Restarting");
+            };
         }
         let finished_before = self.all_stopped();
         let mut childs = mem::take(&mut self.childs);
