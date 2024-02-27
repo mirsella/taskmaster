@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 14:39:31 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 21:20:05 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -214,7 +214,7 @@ impl Child {
     /// Kill the child. for graceful shutdown, check stop().
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
-        if let Status::Running(_) | Status::Starting(_) = self.status {
+        if let Status::Running(_) | Status::Starting(_) | Status::Terminating(_) = self.status {
             if let Err(e) = self.process.kill() {
                 error!(pid = self.process.id(), error = ?e, "couldn't kill the child");
             }

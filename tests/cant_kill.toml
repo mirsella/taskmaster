@@ -1,0 +1,8 @@
+loglevel = "trace"
+
+[[program]]
+name = "does not care"
+command = "python3"
+processes = 1
+exit_signal = "SIGTERM"
+args = ["tests/cant_kill.py"]
