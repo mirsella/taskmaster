@@ -13,7 +13,7 @@
 pub mod child;
 
 use crate::config::Signal;
-use child::{Child, Status};
+use child::Child;
 use serde::Deserialize;
 use serde_with::{serde_as, DurationSeconds};
 use std::{
@@ -223,7 +223,7 @@ impl Program {
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
         for child in &mut self.childs {
-            if let Status::Running(_) | Status::Starting(_) = child.status {
+            if child.status.is_running() {
                 debug!(
                     pid = child.process.id(),
                     name = self.name,
@@ -238,7 +238,7 @@ impl Program {
     /// start the graceful shutdown of the childs: send the stop signal, and mark them as stopping
     pub fn stop(&mut self) {
         for child in &mut self.childs {
-            if let Status::Running(_) | Status::Starting(_) = child.status {
+            if child.status.is_running() {
                 debug!(
                     pid = child.process.id(),
                     name = self.name,
