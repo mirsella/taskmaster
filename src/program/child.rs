@@ -11,7 +11,10 @@
 /* ************************************************************************** */
 
 use std::{
-    error::Error, fmt, process::{self, ExitStatus}, time::Instant
+    error::Error,
+    fmt,
+    process::{self, ExitStatus},
+    time::{Duration, Instant},
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -30,40 +33,40 @@ pub enum Status {
 }
 
 impl fmt::Display for Status {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self  {
-			Status::Stopped(_) => write!(f, "Stopped"),
-			Status::Starting(_) => write!(f, "Starting"),
-			Status::Terminating(_) => write!(f, "Terminating"),
-			Status::Running(_) => write!(f, "Running"),
-			Status::Finished(_, code) => write!(f, "Finished ({code})"),
-		}
-	}
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Status::Stopped(_) => write!(f, "Stopped"),
+            Status::Starting(_) => write!(f, "Starting"),
+            Status::Terminating(_) => write!(f, "Terminating"),
+            Status::Running(_) => write!(f, "Running"),
+            Status::Finished(_, code) => write!(f, "Finished ({code})"),
+        }
+    }
 }
 
 impl PartialEq for Status {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			(Status::Stopped(_), Status::Stopped(_))  => true,
-			(Status::Starting(_), Status::Starting(_))  => true,
-			(Status::Terminating(_), Status::Terminating(_))  => true,
-			(Status::Running(_), Status::Running(_))  => true,
-			(Status::Finished(_, _), Status::Finished(_, _))  => true,
-			_ => false,
-		}
-	}
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Status::Stopped(_), Status::Stopped(_)) => true,
+            (Status::Starting(_), Status::Starting(_)) => true,
+            (Status::Terminating(_), Status::Terminating(_)) => true,
+            (Status::Running(_), Status::Running(_)) => true,
+            (Status::Finished(_, _), Status::Finished(_, _)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Status {
-	pub fn color(&self) -> ratatui::style::Color {
-		match self {
-			Status::Stopped(_) => ratatui::style::Color::Red,
-			Status::Starting(_) => ratatui::style::Color::Cyan,
-			Status::Terminating(_) => ratatui::style::Color::Yellow,
-			Status::Running(_) => ratatui::style::Color::Green,
-			Status::Finished(_, _) => ratatui::style::Color::Gray,
-		}
-	}
+    pub fn color(&self) -> ratatui::style::Color {
+        match self {
+            Status::Stopped(_) => ratatui::style::Color::Red,
+            Status::Starting(_) => ratatui::style::Color::Cyan,
+            Status::Terminating(_) => ratatui::style::Color::Yellow,
+            Status::Running(_) => ratatui::style::Color::Green,
+            Status::Finished(_, _) => ratatui::style::Color::Gray,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -102,8 +105,9 @@ impl Child {
             _ => (),
         };
         match self.status {
-            Status::Finished(_, code)
-                if program.restart_policy == RestartPolicy::UnexpectedExit =>
+            Status::Finished(since, code)
+                if program.restart_policy == RestartPolicy::UnexpectedExit
+                    && since.elapsed() > Duration::from_secs(1) =>
             {
                 if !program
                     .valid_exit_codes
@@ -120,14 +124,19 @@ impl Child {
                     self.process = program.create_child()?.process;
                 }
             }
-            Status::Finished(_, code) if program.restart_policy == RestartPolicy::Always => {
-                debug!(
-                    name = program.name,
-                    exit_code = code.code(),
-                    "restarting a finished child"
-                );
-                self.restarts += 1;
-                self.process = program.create_child()?.process;
+            Status::Finished(since, code)
+                if program.restart_policy == RestartPolicy::Always
+                    && since.elapsed() > Duration::from_secs(1) =>
+            {
+                if (self.restarts as isize) < program.max_restarts || program.max_restarts == -1 {
+                    debug!(
+                        name = program.name,
+                        exit_code = code.code(),
+                        "restarting a finished child"
+                    );
+                    self.restarts += 1;
+                    self.process = program.create_child()?.process;
+                }
             }
             Status::Terminating(since) if program.graceful_timeout < since.elapsed() => {
                 warn!(
