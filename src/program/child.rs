@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 14:36:05 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 14:37:41 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -282,7 +282,9 @@ impl Child {
                     "restarting a crashed child"
                 );
                 self.restarts += 1;
-                self.process = program.create_child()?.process;
+                let child = program.create_child()?;
+				self.process = child.process;
+				self.status = child.status;
             }
             _ => (),
         };
