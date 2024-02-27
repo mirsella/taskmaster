@@ -39,6 +39,47 @@ pub enum Signal {
     SIGSYS = 31,
 }
 
+impl TryFrom<i32> for Signal {
+    type Error = ();
+
+    fn try_from(num: i32) -> Result<Self, Self::Error> {
+        match num {
+            1 => Ok(Signal::SIGHUP),
+            2 => Ok(Signal::SIGINT),
+            3 => Ok(Signal::SIGQUIT),
+            4 => Ok(Signal::SIGILL),
+            5 => Ok(Signal::SIGTRAP),
+            6 => Ok(Signal::SIGABRT),
+            7 => Ok(Signal::SIGBUS),
+            8 => Ok(Signal::SIGFPE),
+            9 => Ok(Signal::SIGKILL),
+            10 => Ok(Signal::SIGUSR1),
+            11 => Ok(Signal::SIGSEGV),
+            12 => Ok(Signal::SIGUSR2),
+            13 => Ok(Signal::SIGPIPE),
+            14 => Ok(Signal::SIGALRM),
+            15 => Ok(Signal::SIGTERM),
+            16 => Ok(Signal::SIGSTKFLT),
+            17 => Ok(Signal::SIGCHLD),
+            18 => Ok(Signal::SIGCONT),
+            19 => Ok(Signal::SIGSTOP),
+            20 => Ok(Signal::SIGTSTP),
+            21 => Ok(Signal::SIGTTIN),
+            22 => Ok(Signal::SIGTTOU),
+            23 => Ok(Signal::SIGURG),
+            24 => Ok(Signal::SIGXCPU),
+            25 => Ok(Signal::SIGXFSZ),
+            26 => Ok(Signal::SIGVTALRM),
+            27 => Ok(Signal::SIGPROF),
+            28 => Ok(Signal::SIGWINCH),
+            29 => Ok(Signal::SIGIO),
+            30 => Ok(Signal::SIGPWR),
+            31 => Ok(Signal::SIGSYS),
+            _ => Err(()),
+        }
+    }
+}
+
 impl fmt::Display for Signal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self:?} ({})", *self as u8)

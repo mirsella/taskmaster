@@ -18,7 +18,7 @@ mod tui;
 use config::Config;
 use crossterm::event::{self, Event, KeyCode};
 use libc::{c_void, sighandler_t, SIGHUP};
-use program::{child::Status, StartPolicy};
+use program::StartPolicy;
 use std::{
     env::args,
     error::Error,
@@ -61,16 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut pending_quit = false;
     loop {
-        if pending_quit
-            && config.program.iter().all(|p| {
-                p.childs.iter().all(|c| {
-                    matches!(
-                        c.status,
-                        Status::Stopped(_) | Status::Finished(_, _) | Status::Crashed(_)
-                    )
-                })
-            })
-        {
+        if pending_quit && config.program.iter().all(|p| p.all_stopped()) {
             info!("All programs have stopped. Quitting");
             break;
         }
@@ -176,6 +167,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+    // kill in case there is still a program running
     for program in &mut config.program {
         program.kill();
     }
