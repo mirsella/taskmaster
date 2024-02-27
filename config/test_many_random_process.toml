@@ -3,14 +3,30 @@ loglevel = "trace"
 [[program]]
 name = "exit"
 command = "python3"
-processes = 30
+processes = 5
+restart_policy = "never"
 args = ["tests/exit.py"]
 
 [[program]]
 name = "exit and signals"
 command = "python3"
-processes = 30
+processes = 5
 restart_policy = "unexpectedexit"
 max_restarts = 2
 min_runtime = 5
 args = ["tests/exit_signal.py"]
+
+[[program]]
+name = "start me"
+command = "sleep"
+start_policy = "manual"
+processes = 5
+args = ["infinity"]
+
+[[program]]
+name = "exit_codes"
+command = "python3"
+processes = 5
+restart_policy = "never"
+valid_exit_codes = [0, 2, 3, 4, 8, 9]
+args = ["tests/bad_exit.py"]
