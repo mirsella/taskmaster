@@ -11,7 +11,6 @@
 /* ************************************************************************** */
 
 pub mod child;
-pub mod terminal_status;
 
 use crate::config::Signal;
 use child::{Child, Status};
@@ -139,14 +138,14 @@ impl Program {
                 Ok(f)
             })
         };
-        trace!(name = self.name, path = ?self.stdin, "Setting up stdin");
+        trace!(name = self.name, "where" = ?self.stdin, "Setting up stdin");
         let stdin = setup_io(
             self.stdin.as_deref(),
             File::options().read(true).create(false),
         )?;
         trace!(
             name = self.name,
-            path = ?self.stdout,
+            "where" = ?self.stdout,
             "Setting up stdout"
         );
         let stdout = setup_io(
@@ -156,7 +155,7 @@ impl Program {
                 .truncate(self.stdout_truncate)
                 .create(true),
         )?;
-        trace!(name = self.name, path = ?self.stderr, "Setting up stderr");
+        trace!(name = self.name, "where" = ?self.stderr, "Setting up stderr");
         let stderr = setup_io(
             self.stderr.as_deref(),
             File::options()
@@ -178,6 +177,13 @@ impl Program {
             current_dir().map_err(|e| format!("couldn't get the current directory: {e}"))?,
         );
 
+        let previous_umask = match self.umask {
+            Some(umask) => {
+                let previous = unsafe { libc::umask(umask) };
+                Some(previous)
+            }
+            None => None,
+        };
         let child = Command::new(&self.cmd)
             .stdin(stdin)
             .stdout(stdout)
@@ -186,6 +192,9 @@ impl Program {
             .envs(env_vars)
             .current_dir(cwd)
             .spawn()?;
+        if let Some(umask) = previous_umask {
+            unsafe { libc::umask(umask) };
+        }
         debug!(pid = child.id(), name = self.name, "Running");
         Ok(Child::new(child))
     }
@@ -218,13 +227,15 @@ impl Program {
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
         for child in &mut self.childs {
-            debug!(
-                pid = child.process.id(),
-                name = self.name,
-                signal = %self.stop_signal,
-                "Killing"
-            );
-            let _ = child.process.kill();
+            if let Status::Running(_) | Status::Starting(_) = child.status {
+                debug!(
+                    pid = child.process.id(),
+                    name = self.name,
+                    signal = %self.stop_signal,
+                    "Killing"
+                );
+                let _ = child.process.kill();
+            }
         }
     }
 

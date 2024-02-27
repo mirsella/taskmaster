@@ -6,7 +6,7 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/21 10:26:32 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 12:49:28 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 12:51:23 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -51,9 +51,11 @@ impl Config {
         let mut config: Config = toml::from_str(&raw_file)?;
         let mut names = HashSet::new();
         for prog in &mut config.program {
-			prog.name = prog.name.replace(' ', "_")
-									.trim_matches('_')
-									.to_string();
+            prog.name = prog
+                .name
+                .replace(' ', "_")
+                .trim_matches(['_', ' '])
+                .to_string();
             if !prog.name.is_empty() && names.insert(prog.name.clone()) {
                 continue;
             }
@@ -102,7 +104,7 @@ mod tests {
     use super::{Config, Signal};
     use crate::program::{RestartPolicy, StartPolicy};
     use std::path::Path;
-    const CONFIG: &str = "config/tests.toml";
+    const CONFIG: &str = "tests/tests.toml";
 
     #[test]
     fn default() {
@@ -155,11 +157,11 @@ mod tests {
     #[test]
     #[should_panic]
     fn invalid_config() {
-        Config::load("config/invalid.toml").unwrap();
+        Config::load("tests/invalid.toml").unwrap();
     }
     #[test]
     fn invalid_config_no_command() {
-        dbg!(Config::load("config/no_command.toml"))
+        dbg!(Config::load("tests/no_command.toml"))
             .unwrap_err()
             .to_string()
             .contains("missing field `command`")
@@ -167,18 +169,19 @@ mod tests {
             .unwrap();
     }
     #[test]
+    #[should_panic]
     fn different_configs() {
         let base = Config::load("config/default.toml").unwrap();
-        let diff = Config::load("config/default_diff.toml").unwrap();
+        let diff = Config::load("tests/default_diff.toml").unwrap();
 
         for i in 0..base.program.len() {
-            assert_ne!(base.program[i], diff.program[i])
+            assert_eq!(base.program[i], diff.program[i])
         }
     }
     #[test]
     fn equal_configs() {
-        let base = Config::load("config/default_same1.toml").unwrap();
-        let link = Config::load("config/default_same2.toml").unwrap();
+        let base = Config::load("tests/default_same1.toml").unwrap();
+        let link = Config::load("tests/default_same2.toml").unwrap();
 
         for i in 0..base.program.len() {
             assert_eq!(base.program[i], link.program[i])

@@ -6,22 +6,26 @@
 /*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/02/23 17:47:41 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/27 12:49:05 by nguiard          ###   ########.fr       */
+/*   Updated: 2024/02/27 12:54:56 by nguiard          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
+use super::{Program, RestartPolicy};
 use std::{
-    error::Error, fmt, os::unix::process::ExitStatusExt, process::{self, ExitStatus}, time::Instant
+    error::Error,
+    fmt,
+    process::{self, ExitStatus},
+    time::Instant,
+	os::unix::process::ExitStatusExt,
 };
 use tracing::{debug, error, instrument, trace, warn};
 
-use super::{Program, RestartPolicy};
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Eq, Clone, Copy)]
 pub enum Status {
+    /// The process is not running
     Stopped(Instant),
     Finished(Instant, ExitStatus),
-    // being gracefully terminated
+    /// being gracefully terminated
     Terminating(Instant),
     /// The process is currently starting, but before min_runtime
     Starting(Instant),
