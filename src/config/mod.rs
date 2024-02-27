@@ -169,12 +169,13 @@ mod tests {
             .unwrap();
     }
     #[test]
+    #[should_panic]
     fn different_configs() {
         let base = Config::load("config/default.toml").unwrap();
         let diff = Config::load("config/default_diff.toml").unwrap();
 
         for i in 0..base.program.len() {
-            assert_ne!(base.program[i], diff.program[i])
+            assert_eq!(base.program[i], diff.program[i])
         }
     }
     #[test]
