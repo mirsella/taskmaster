@@ -12,7 +12,7 @@
 
 use crate::program::{child::Status, Program};
 use ratatui::{
-    style::Style,
+    style::{Color, Style},
     widgets::{Cell, Row, Table},
 };
 use std::{process::ExitStatus, time::Instant};
@@ -94,5 +94,17 @@ impl Program {
         }
 
         res_lines
+    }
+}
+
+impl Status {
+    pub fn color(&self) -> Color {
+        match self {
+            Status::Stopped(_) => Color::Red,
+            Status::Starting(_) => Color::Cyan,
+            Status::Terminating(_) => Color::Yellow,
+            Status::Running(_) => Color::Green,
+            Status::Finished(_, _) => Color::Gray,
+        }
     }
 }

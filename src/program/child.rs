@@ -10,6 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+use super::{Program, RestartPolicy};
 use std::{
     error::Error,
     fmt,
@@ -18,13 +19,12 @@ use std::{
 };
 use tracing::{debug, error, instrument, trace, warn};
 
-use super::{Program, RestartPolicy};
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Status {
+    /// The process is not running
     Stopped(Instant),
     Finished(Instant, ExitStatus),
-    // being gracefully terminated
+    /// being gracefully terminated
     Terminating(Instant),
     /// The process is currently starting, but before min_runtime
     Starting(Instant),
@@ -40,31 +40,6 @@ impl fmt::Display for Status {
             Status::Terminating(_) => write!(f, "Terminating"),
             Status::Running(_) => write!(f, "Running"),
             Status::Finished(_, code) => write!(f, "Finished ({code})"),
-        }
-    }
-}
-
-impl PartialEq for Status {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Status::Stopped(_), Status::Stopped(_)) => true,
-            (Status::Starting(_), Status::Starting(_)) => true,
-            (Status::Terminating(_), Status::Terminating(_)) => true,
-            (Status::Running(_), Status::Running(_)) => true,
-            (Status::Finished(_, _), Status::Finished(_, _)) => true,
-            _ => false,
-        }
-    }
-}
-
-impl Status {
-    pub fn color(&self) -> ratatui::style::Color {
-        match self {
-            Status::Stopped(_) => ratatui::style::Color::Red,
-            Status::Starting(_) => ratatui::style::Color::Cyan,
-            Status::Terminating(_) => ratatui::style::Color::Yellow,
-            Status::Running(_) => ratatui::style::Color::Green,
-            Status::Finished(_, _) => ratatui::style::Color::Gray,
         }
     }
 }

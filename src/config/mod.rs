@@ -53,7 +53,7 @@ impl Config {
         for prog in &mut config.program {
             prog.name = prog
                 .name
-                .replace(" ", "_")
+                .replace(' ', "_")
                 .trim_matches(['_', ' '])
                 .to_string();
             if !prog.name.is_empty() && names.insert(prog.name.clone()) {
