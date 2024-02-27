@@ -177,6 +177,13 @@ impl Program {
             current_dir().map_err(|e| format!("couldn't get the current directory: {e}"))?,
         );
 
+        let previous_umask = match self.umask {
+            Some(umask) => {
+                let previous = unsafe { libc::umask(umask) };
+                Some(previous)
+            }
+            None => None,
+        };
         let child = Command::new(&self.cmd)
             .stdin(stdin)
             .stdout(stdout)
@@ -185,6 +192,9 @@ impl Program {
             .envs(env_vars)
             .current_dir(cwd)
             .spawn()?;
+        if let Some(umask) = previous_umask {
+            unsafe { libc::umask(umask) };
+        }
         debug!(pid = child.id(), name = self.name, "Running");
         Ok(Child::new(child))
     }

@@ -1,0 +1,18 @@
+loglevel = "trace"
+
+[[program]]
+umask = 0o077
+command = "/bin/sh"
+args = ["-c", "umask"]
+stdout = "umask077.log"
+
+[[program]]
+umask = 0o000
+command = "/bin/sh"
+args = ["-c", "umask"]
+stdout = "umask000.log"
+
+[[program]]
+command = "/bin/sh"
+args = ["-c", "umask"]
+stdout = "no-umask.log"
