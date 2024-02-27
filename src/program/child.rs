@@ -10,6 +10,8 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+use crate::config::Signal;
+
 use super::{Program, RestartPolicy};
 use std::{
     error::Error,
@@ -20,20 +22,42 @@ use std::{
 };
 use tracing::{debug, error, instrument, trace, warn};
 
-#[derive(Debug, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Status {
     /// The process is not running
     Stopped(Instant),
-    /// If the process has finished with a status code, not by a signal
-    Finished(Instant, ExitStatus),
+    /// the process has finished by itself, with a status code
+    Finished(Instant, i32),
+    /// the process has been terminated by a signal
+    Terminated(Instant, i32),
     /// being gracefully terminated
     Terminating(Instant),
     /// The process is currently starting, but before min_runtime
     Starting(Instant),
     /// after min_runtime
     Running(Instant),
-    /// if the process has been stopped by a signal
-    Crashed(Instant),
+}
+impl Status {
+    pub fn set_instant(&mut self, instant: Instant) {
+        match self {
+            Status::Stopped(t)
+            | Status::Finished(t, _)
+            | Status::Terminated(t, _)
+            | Status::Terminating(t)
+            | Status::Starting(t)
+            | Status::Running(t) => *t = instant,
+        }
+    }
+    pub fn get_instant(&self) -> Instant {
+        match self {
+            Status::Stopped(t)
+            | Status::Finished(t, _)
+            | Status::Terminated(t, _)
+            | Status::Terminating(t)
+            | Status::Starting(t)
+            | Status::Running(t) => *t,
+        }
+    }
 }
 
 impl fmt::Display for Status {
@@ -43,23 +67,17 @@ impl fmt::Display for Status {
             Status::Starting(_) => write!(f, "Starting"),
             Status::Terminating(_) => write!(f, "Terminating"),
             Status::Running(_) => write!(f, "Running"),
-            Status::Finished(_, _) => write!(f, "Finished"),
-            Status::Crashed(_) => write!(f, "Crashed"),
+            Status::Finished(_, code) => write!(f, "Finished (code: {code})"),
+            Status::Terminated(_, signal) => write!(
+                f,
+                "Terminated (signal: {})",
+                signal
+                    .to_owned()
+                    .try_into()
+                    .map(|s: Signal| s.to_string())
+                    .unwrap_or(format!("Unknown ({signal})"))
+            ),
         }
-    }
-}
-
-impl PartialEq for Status {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Status::Finished(_, _), Status::Finished(_, _))
-                | (Status::Stopped(_), Status::Stopped(_))
-                | (Status::Starting(_), Status::Starting(_))
-                | (Status::Terminating(_), Status::Terminating(_))
-                | (Status::Running(_), Status::Running(_))
-                | (Status::Crashed(_), Status::Crashed(_))
-        )
     }
 }
 

@@ -12,99 +12,76 @@
 
 use crate::program::{child::Status, Program};
 use ratatui::{
-    style::Style,
+    style::{Color, Style},
     widgets::{Cell, Row, Table},
 };
-use std::{process::ExitStatus, time::Instant};
+use std::{borrow::BorrowMut, collections::HashMap, mem, time::Instant};
 
 pub fn status(programs: &[Program]) -> Table {
     let mut rows = vec![Row::new(vec!["Name", "Status", "Processes", "Last update"])];
-    // TODO: https://docs.rs/ratatui/latest/ratatui/widgets/struct.Table.html
     rows.push(Row::new(vec!["╺━━━━━╸"]));
     for prog in programs {
-        let status_rows = prog.status();
-        for row in status_rows.clone() {
-            rows.push(row);
-        }
+        let mut status_rows = prog.status();
         if !status_rows.is_empty() {
-            rows.push(Row::new(vec!["╺━━━━━╸"]));
+            status_rows.push(Row::new(vec!["╺━━━━━╸"]));
         }
+        rows.extend(status_rows.clone());
     }
     Table::new(rows, &[])
 }
 
 impl Program {
-    /// Terminal status
-    fn status_global(&self, status_check: Status) -> Option<Row> {
-        let since = self
-            .childs
-            .iter()
-            .filter(|&c| c.status.eq(&status_check))
-            .max_by_key(|x| x.last_update());
-        let running: usize = self
-            .childs
-            .iter()
-            .filter(|&c| c.status.eq(&status_check))
-            .count();
-        if running == 0 {
-            return None;
-        };
-        let since_str = match since {
-            Some(c) => format!("{:?}", c.last_update().elapsed()),
-            // lgillard: i think this is better than unknown, because we know, it's just there is no child
-            None => "".to_string(),
-            // None => "Unknown".to_string(),
-        };
-        let status_str = format!("{running}/{}", self.childs.len());
-
-        Some(Row::new(vec![
-            Cell::from(self.name.clone()),
-            Cell::from(format!("{}", status_check).to_string())
-                .style(Style::new().fg(status_check.color())),
-            Cell::from(status_str),
-            Cell::from(since_str),
-        ]))
-    }
-
     pub fn status(&self) -> Vec<Row> {
-        let instant_dummy = Instant::now();
-        let running = self.status_global(Status::Running(instant_dummy));
-        let terminating = self.status_global(Status::Terminating(instant_dummy));
-        let starting = self.status_global(Status::Starting(instant_dummy));
-        let finished = self.status_global(Status::Finished(instant_dummy, ExitStatus::default()));
-        let stopped = self.status_global(Status::Stopped(instant_dummy));
-        let crashed = self.status_global(Status::Crashed(instant_dummy));
-        let mut res_lines: Vec<Row> = vec![];
-
-        for line in [running, starting, terminating, stopped, finished, crashed]
-            .into_iter()
-            .flatten()
-        {
-            res_lines.push(line);
+        let same_instant = Instant::now();
+        let statuss = self
+            .childs
+            .iter()
+            .map(|c| {
+                c.status.to_owned().set_instant(same_instant);
+                c
+            })
+            .collect::<Vec<_>>();
+        let mut map = HashMap::new();
+        for status in statuss {
+            let key = status.status.to_owned();
+            let value = map.entry(key).or_insert(0);
+            *value += 1;
         }
 
-        if res_lines.is_empty() {
-            res_lines.push(Row::new([
+        let mut lines = vec![];
+        if lines.is_empty() {
+            lines.push(Row::new([
                 self.name.clone(),
-                "Not started".to_string(),
                 "No processes".to_string(),
-                "Unknown".to_string(),
+                "0".to_string(),
+                "".to_string(),
             ]))
         }
-
-        res_lines
+        lines
     }
 }
 
 impl Status {
-    pub fn color(&self) -> ratatui::style::Color {
+    pub fn color(&self, valid_codes: &[i32], valid_signal: i32) -> Color {
         match self {
-            Status::Stopped(_) => ratatui::style::Color::Blue,
-            Status::Starting(_) => ratatui::style::Color::Cyan,
-            Status::Terminating(_) => ratatui::style::Color::Yellow,
-            Status::Running(_) => ratatui::style::Color::Green,
-            Status::Finished(_, _) => ratatui::style::Color::Gray,
-            Status::Crashed(_) => ratatui::style::Color::Red,
+            Status::Stopped(_) => Color::Blue,
+            Status::Starting(_) => Color::Cyan,
+            Status::Terminating(_) => Color::Yellow,
+            Status::Running(_) => Color::Green,
+            Status::Finished(_, code) => {
+                if valid_codes.contains(code) {
+                    Color::Gray
+                } else {
+                    Color::Red
+                }
+            }
+            Status::Terminated(_, signal) => {
+                if signal == &valid_signal {
+                    Color::Gray
+                } else {
+                    Color::Red
+                }
+            }
         }
     }
 }
