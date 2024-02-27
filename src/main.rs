@@ -21,6 +21,7 @@ use program::StartPolicy;
 use std::{
     env::args,
     error::Error,
+    mem,
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
@@ -76,6 +77,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         tui.draw(&config.program)?;
         for program in &mut config.program {
             program.tick()?;
+        }
+        for name in mem::take(&mut config.program_deletions).into_iter() {
+            if let Some(position) = config.program.iter().position(|p| p.name == name) {
+                if config.program[position].all_stopped() {
+                    info!(name, "Removing program");
+                    config.program.remove(position);
+                } else {
+                    config.program_deletions.push(name);
+                }
+            }
         }
         match tui.tick(Duration::from_millis(10))? {
             Some(Command::Quit) => {

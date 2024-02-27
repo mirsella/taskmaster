@@ -30,6 +30,8 @@ pub struct Config {
 
     #[serde(skip)]
     pub tracing_filter_handle: Option<Handle<EnvFilter, Registry>>,
+    #[serde(skip)]
+    pub program_deletions: Vec<String>,
 }
 fn default_loglevel() -> Level {
     Level::INFO
@@ -82,6 +84,7 @@ impl Config {
         }
         for program in &mut self.program {
             if !new.program.iter().any(|p| p.name == program.name) {
+                self.program_deletions.push(program.name.clone());
                 program.stop();
             }
         }
