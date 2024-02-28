@@ -236,6 +236,7 @@ impl Program {
     }
 
     /// start the graceful shutdown of the childs: send the stop signal, and mark them as stopping
+    #[instrument(skip_all)]
     pub fn stop(&mut self) {
         for child in &mut self.childs {
             if child.status.is_running() {
@@ -278,6 +279,7 @@ impl Program {
         Ok(())
     }
     /// apply a new configuration to the program, and restart it if needed
+    #[instrument(skip_all)]
     pub fn update(&mut self, new: Program) {
         if self == &new {
             trace!(
