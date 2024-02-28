@@ -22,6 +22,7 @@ use std::{
     error::Error,
     fs::{self, File, OpenOptions},
     mem,
+    os::unix::process::CommandExt,
     path::{Path, PathBuf},
     process::{self, Command, Stdio},
     time::Duration,
@@ -176,22 +177,27 @@ impl Program {
         let cwd = self.cwd.clone().unwrap_or(
             current_dir().map_err(|e| format!("couldn't get the current directory: {e}"))?,
         );
-
-        let previous_umask = match self.umask {
-            Some(umask) => {
-                let previous = unsafe { libc::umask(umask) };
-                Some(previous)
-            }
-            None => None,
-        };
-        let child = Command::new(&self.cmd)
+        let previous_umask = self.umask.map(|m| unsafe { libc::umask(m) });
+        let mut command = Command::new(&self.cmd);
+        let cmd = command
             .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr)
             .args(self.args.clone())
             .envs(env_vars)
-            .current_dir(cwd)
-            .spawn()?;
+            .current_dir(cwd);
+        if let Some(user) = &self.user {
+            let u = users::get_user_by_name(user).ok_or(format!("User `{user}` not found"))?;
+            let uid = u.uid();
+            let groups = u
+                .groups()
+                .ok_or(format!("Couldn't get the groups of user `{user}`"))?
+                .iter()
+                .map(|g| g.gid())
+                .collect::<Vec<_>>();
+            cmd.uid(uid).groups(&groups);
+        }
+        let child = cmd.spawn()?;
         if let Some(umask) = previous_umask {
             unsafe { libc::umask(umask) };
         }
