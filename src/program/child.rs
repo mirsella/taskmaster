@@ -214,7 +214,7 @@ impl Child {
     /// Kill the child. for graceful shutdown, check stop().
     #[instrument(skip_all)]
     pub fn kill(&mut self) {
-        if let Status::Running(_) | Status::Starting(_) | Status::Terminating(_) = self.status {
+        if self.status.is_running() {
             if let Err(e) = self.process.kill() {
                 error!(pid = self.process.id(), error = ?e, "couldn't kill the child");
             }
@@ -224,7 +224,7 @@ impl Child {
     /// gracefully stop the child
     #[instrument(skip_all)]
     pub fn stop(&mut self, signal: i32) {
-        if let Status::Running(_) | Status::Starting(_) = self.status {
+        if self.status.is_running() {
             if unsafe { libc::kill(self.process.id() as i32, signal) } != 0 {
                 error!(pid = self.process.id(), "couldn't send signal to the child");
             }
