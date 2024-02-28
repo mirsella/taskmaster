@@ -189,17 +189,7 @@ impl Program {
         if let Some(user) = &self.user {
             let u = users::get_user_by_name(user).ok_or(format!("User `{user}` not found"))?;
             let uid = u.uid();
-            cmd.uid(uid);
-
-            // nightly only
-            // #![feature(setgroups)]
-            // let groups = u
-            //     .groups()
-            //     .ok_or(format!("Couldn't get the groups of user `{user}`"))?
-            //     .iter()
-            //     .map(|g| g.gid())
-            //     .collect::<Vec<_>>();
-            // cmd.groups(&groups);
+            cmd.uid(uid).gid(u.primary_group_id());
         }
         let child = cmd.spawn()?;
         if let Some(umask) = previous_umask {
