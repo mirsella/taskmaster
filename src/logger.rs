@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   mod.rs                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: nguiard <nguiard@student.42.fr>            +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/02/21 16:53:03 by nguiard           #+#    #+#             */
-/*   Updated: 2024/02/22 09:49:47 by nguiard          ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 use std::{fs::File, io::Write, time::Duration};
 use tracing_subscriber::{
     fmt::layer, layer::SubscriberExt, registry, reload, util::SubscriberInitExt, EnvFilter,

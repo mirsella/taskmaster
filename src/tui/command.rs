@@ -1,5 +1,4 @@
 use std::str::FromStr;
-
 use tracing::Level;
 
 #[derive(Debug)]
